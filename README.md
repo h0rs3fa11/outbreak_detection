@@ -9,7 +9,9 @@ Put [higgs dataset files](https://snap.stanford.edu/data/higgs-twitter.html) in 
 ## Code info
 
 - `display_outbreak.py` Load activity information from `higgs-activity_time.txt`, display the trend of information explosion by month.
-![](/Users/h0rs3/Work/Learning/LeidenUniversity/SNA/course_project/outbreak_detection/outbreak_higgs.png)
+
+![error](outbreak_higgs.png)
+
 - `outbreak.py` Simulate outbreaks, as well as extract nodes from the known outbreak from higgs.
 
 - `marginal_gain.py` penalty reduction calculation. NOT FINISHED.
