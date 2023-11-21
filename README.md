@@ -20,10 +20,12 @@ Put [higgs dataset files](https://snap.stanford.edu/data/higgs-twitter.html) in 
 
 ## TODOs
 
-- [ ] (pre-processing)Combine four different graph file.
+- [x] (pre-processing)Combine four different graph file.
 
 - [ ] How to consider cost? simulate the cost of monitoring each node.
 
+- [ ] When inspecting outbreaks on Twitter, should we also consider the follower network? When an outbreak occurs through user A, are all user A's followers considered affected by the outbreak?
+
 - [ ] Define a function to calculate penalty reduction - detection time, detection likelihood.
 
-- [ ] Greedy/CELF algorithm
+- [ ] Greedy/CELF algorithm.
