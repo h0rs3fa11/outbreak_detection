@@ -20,7 +20,7 @@ Put [higgs dataset files](https://snap.stanford.edu/data/higgs-twitter.html) in 
 
 ## TODOs
 
-- [ ] Obtain all nodes(user's ID) from four different files, as the node sets.
+- [ ] (pre-processing)Combine four different graph file.
 
 - [ ] How to consider cost? simulate the cost of monitoring each node.
 
