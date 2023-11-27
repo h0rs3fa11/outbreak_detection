@@ -1,4 +1,5 @@
 from network import Network
+from algorithm import OutbreakDetection
 # initialization, data pre-processing
 
 mt_n = Network(
@@ -7,7 +8,7 @@ mt_n = Network(
     result_file_name='mention_higgs_network.csv', 
     follower_file_name='higgs-social_network.edgelist', 
     timestamp_file_name='higgs-activity_time.txt',
-    activity='MT')
+    activity='MT', init=True)
 
 rt_n = Network(
     dataset_dir='dataset',
@@ -15,11 +16,13 @@ rt_n = Network(
     result_file_name='retweet_higgs_network.csv',
     follower_file_name='higgs-social_network.edgelist',
     timestamp_file_name='higgs-activity_time.txt',
-    activity='RT')
+    activity='RT', init=True)
 
 mt_n.simulate_cost(rt_n)
 
 # run algorithm
+algo = OutbreakDetection(mt_n, 10)
+print(algo.naive_greedy('UC'))
 
 # solution quality
 

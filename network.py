@@ -71,7 +71,4 @@ class Network:
         nodes = set(self.G.nodes()).union(set(n2.G.nodes()))
         for n in nodes:
             self.node_cost[n] = random.randint(1, 1000)
-
-    def reward(self):
-        """ Get reward of each node"""
-        pass
+            
