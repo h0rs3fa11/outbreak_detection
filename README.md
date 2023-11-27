@@ -18,14 +18,16 @@ Put [higgs dataset files](https://snap.stanford.edu/data/higgs-twitter.html) in 
 
 - `algorithm.py` From https://github.com/hautahi/IM_GreedyCELF. NOT FINISHED.
 
+- `combine_dataset.py` Needs to be adjusted
+
 ## TODOs
 
-- [x] (pre-processing)Combine four different graph file.
+### Dataset preprocessing
 
-- [ ] How to consider cost? simulate the cost of monitoring each node.
+- [ ] Count the number of followers for nodes in the retweet and mention graph.
 
-- [ ] When inspecting outbreaks on Twitter, should we also consider the follower network? When an outbreak occurs through user A, are all user A's followers considered affected by the outbreak?
+- [ ] Simulate the cost of monitoring each node, create a new graph to indicate the cost
 
 - [ ] Define a function to calculate penalty reduction - detection time, detection likelihood.
 
-- [ ] Greedy/CELF algorithm.
+- [ ] Greedy/CELF algorithm

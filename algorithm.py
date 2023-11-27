@@ -1,39 +1,80 @@
 import time
 from outbreak import IC
+from marginal_gain import reward, cost
 
 
-def greedy(g, k, p=0.1, mc=1000):
+def naive_greedy_uc(G, B, cost_type='UC'):
     """
-    Input:  graph object, number of seed nodes
-    Output: optimal seed set, resulting spread, time for each iteration
+    G: graph
+    B: budget
+    type: unit code or variable cost
+
+    Return: optimal set, time spending
     """
+    # Initalization
+    A = []
+    max_reward = -1
+    tmpG = G
+    timelapse, start_time = [], time.time()
 
-    S, spread, timelapse, start_time = [], [], [], time.time()
-
-    # Find k nodes with largest marginal gain
-    for _ in range(k):
-
-        # Loop over nodes that are not yet in seed set to find biggest marginal gain
-        best_spread = 0
-        for j in set(range(g.number_of_nodes()))-set(S):
-
-            # Get the spread
-            # TODO: Replace this to reward function
-            s = IC(g, S + [j], p, mc)
-
-            # Update the winning node and spread so far
-            if s > best_spread:
-                best_spread, node = s, j
-
-        # Add the selected node to the seed set
-        S.append(node)
-
-        # Add estimated spread and elapsed time
-        spread.append(best_spread)
+    while cost_type == 'UC' and len(A) < B or cost_type == 'CB' and cost(A) < B :
+        current_set = A
+        for node in tmpG.nodes():
+            if cost_type == 'UC':
+                r = reward(current_set.append(node)) - reward(A)
+            elif cost_type == 'CB':
+                r = (reward(current_set.append(node)) - reward(A)) / cost(node)
+            else:
+                raise ValueError(f'cost_type {cost_type} is not allowed')
+            
+            if r > max_reward:
+                max_reward_node = node
+        A.append(max_reward_node)
+        tmpG.remove_node(max_reward_node)
         timelapse.append(time.time() - start_time)
 
-    return (S, spread, timelapse)
+    return (A, timelapse)
 
+
+def greedy_lazy_forward(G, B, cost_type='UC'):
+    """
+    G: graph
+    B: budget
+    type: unit code or variable cost
+
+    Return: optimal set, time spending
+    """
+    # Initalization
+    A = []
+    max_reward = -1
+    tmpG = G
+    timelapse, start_time = [], time.time()
+    R = {}
+    cur = {}
+
+    for node in G.nodes():
+        R[node] = float('inf')
+    while cost_type == 'UC' and len(A) < B or cost_type == 'CB' and cost(A) < B :
+        current_set = A
+        
+        for node in tmpG.nodes():
+            cur[node] = False
+
+        for node in tmpG.nodes():
+            if cost_type == 'UC':
+                r = reward(current_set.append(node)) - reward(A)
+            elif cost_type == 'CB':
+                r = (reward(current_set.append(node)) - reward(A)) / cost(node)
+            else:
+                raise ValueError(f'cost_type {cost_type} is not allowed')
+            
+            if r > max_reward:
+                max_reward_node = node
+        A.append(max_reward_node)
+        tmpG.remove_node(max_reward_node)
+        timelapse.append(time.time() - start_time)
+
+    return (A, timelapse)
 
 def celf(g, k, p=0.1, mc=1000):
     """
