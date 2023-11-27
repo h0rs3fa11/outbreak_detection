@@ -42,9 +42,9 @@ mt_n.simulate_cost(rt_n)
 
 ### Dataset preprocessing
 
-- [ ] Count the number of followers for nodes in the retweet and mention graph.
+- [x] Count the number of followers for nodes in the retweet and mention graph.
 
-- [ ] Simulate the cost of monitoring each node, create a new graph to indicate the cost
+- [x] Simulate the cost of monitoring each node, create a new graph to indicate the cost
 
 - [ ] Define a function to calculate penalty reduction - detection time, detection likelihood.
 
