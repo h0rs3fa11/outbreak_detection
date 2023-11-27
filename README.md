@@ -6,19 +6,37 @@ Outbreak detection by using CELF Algorithm
 
 Put [higgs dataset files](https://snap.stanford.edu/data/higgs-twitter.html) in `dataset/`
 
-## Code info
+## Usage
 
-- `display_outbreak.py` Load activity information from `higgs-activity_time.txt`, display the trend of information explosion by month.
+Initialize the network
 
-![error](outbreak_higgs.png)
+```python
+from network import Network
 
-- `outbreak.py` Simulate outbreaks, as well as extract nodes from the known outbreak from higgs.
+# network of mentions
+mt_n = Network(
+    dataset_dir='dataset', 
+    original_file_name='higgs-mention_network.edgelist', 
+    result_file_name='mention_higgs_network.csv', 
+    follower_file_name='higgs-social_network.edgelist', 
+    timestamp_file_name='higgs-activity_time.txt',
+    activity='MT')
 
-- `marginal_gain.py` penalty reduction calculation. NOT FINISHED.
+# network of retweets
+rt_n = Network(
+    dataset_dir='dataset',
+    original_file_name='higgs-retweet_network.edgelist',
+    result_file_name='retweet_higgs_network.csv',
+    follower_file_name='higgs-social_network.edgelist',
+    timestamp_file_name='higgs-activity_time.txt',
+    activity='RT')
 
-- `algorithm.py` From https://github.com/hautahi/IM_GreedyCELF. NOT FINISHED.
 
-- `combine_dataset.py` Needs to be adjusted
+# Record all nodes and its simulated cost
+mt_n.simulate_cost(rt_n)
+
+# mt_n.node_cost['NODE_NAME']
+```
 
 ## TODOs
 

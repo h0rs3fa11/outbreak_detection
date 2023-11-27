@@ -1,13 +1,11 @@
 import time
-from outbreak import IC
-from penalty_reduction import reward, cost
 from queue import PriorityQueue
 
 COST_TYPE = ['UC', 'CB']
 
 def naive_greedy(G, B, cost_type='UC'):
     """
-    G: graph
+    G: Netowrk graph
     B: budget
     type: unit code or variable cost
 
