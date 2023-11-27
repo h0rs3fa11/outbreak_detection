@@ -31,3 +31,5 @@ Put [higgs dataset files](https://snap.stanford.edu/data/higgs-twitter.html) in 
 - [ ] Define a function to calculate penalty reduction - detection time, detection likelihood.
 
 - [ ] Greedy/CELF algorithm
+
+- [ ] heuristic approaches
