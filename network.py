@@ -41,7 +41,11 @@ class Network:
 
         merged_df.drop(['Activity', 'Weight'], axis=1, inplace=True)
 
+        # reverse the direction to match the information spreading flow
+        merged_df['Source'], merged_df['Target'] = merged_df['Target'], merged_df['Source']
+
         fl_edge_list = Network.read_network(self.file_path_follower, names=['Follower', 'User'])
+
         followers_count = fl_edge_list.groupby('User').size()
         follower_dict = followers_count.to_dict()
 
@@ -71,4 +75,3 @@ class Network:
         nodes = set(self.G.nodes()).union(set(n2.G.nodes()))
         for n in nodes:
             self.node_cost[n] = random.randint(1, 1000)
-            
