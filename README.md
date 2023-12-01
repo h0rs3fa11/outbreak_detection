@@ -46,8 +46,12 @@ mt_n.simulate_cost(rt_n)
 
 - [x] Simulate the cost of monitoring each node, create a new graph to indicate the cost
 
+- [ ] Extract information cascade
+
 - [ ] Define a function to calculate penalty reduction - detection time, detection likelihood.
 
-- [ ] Greedy/CELF algorithm
+- [x] Greedy/CELF algorithm
 
 - [ ] heuristic approaches
+
+- [ ] Solution quality

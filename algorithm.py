@@ -1,17 +1,24 @@
 import time
 from queue import PriorityQueue
 from network import Network
+import networkx as nx
 
 COST_TYPE = ['UC', 'CB']
+OBJECTIVE_FUNCTION = ['DT', 'DL', 'PA']
 
 class OutbreakDetection:
-    def __init__(self, network, B):
+    def __init__(self, network, B, of):
         self.cost_types = ['UC', 'CB']
         if(not isinstance(network, Network)):
             raise TypeError('network must be a Network type')
         self.network = network
         self.G = self.network.G
         self.budget = B
+
+        # objective function
+        if(of not in OBJECTIVE_FUNCTION):
+            raise ValueError('Objective function is not right')
+        self.of = of
 
     def naive_greedy(self, cost_type):
         """
@@ -50,8 +57,15 @@ class OutbreakDetection:
         r = self.reward(current_place + [node]) - self.reward(current_place)
         return r if cost_type == 'UC' else r / self.network.node_cost[node]
     
-    def reward(self, placement):
+    def reward(self, placement, of):
         """ Get reward of placement """
+        if of == 'DL':
+            total_reward = self.__detection_likelihood(placement)
+        elif of == 'DT':
+            total_reward = self.__detection_time(placement)
+        else:
+            total_reward = self.__population_affected(placement)
+            
         """ TODO: This is a temporary version of calculating reward, it simply returns a value that is less than previous one, to satisfy the submodularity property """
         base_reward = 100
         total_reward = 0
@@ -61,6 +75,26 @@ class OutbreakDetection:
             # Decrease reward incrementally for each subsequent node
             total_reward += base_reward * (node / 1000) / (i + 1)
         return total_reward
+    
+    def __set_starting_point(self):
+        pass
+
+    def __detection_likelihood(self, placement):
+        """
+        Return: 0 or 1
+        """
+        # whether the node is in the weakly connected components
+        for n in placement:
+            if not any(n in component for component in self.get_components()):
+                return 0
+        
+            # self.G.predecessors(n)
+
+    def __detection_time():
+        pass
+
+    def __population_affected():
+        pass
 
     def greedy_lazy_forward(self):
         """
@@ -96,3 +130,11 @@ class OutbreakDetection:
         timelapse.append(time.time() - start_time)
 
         return (A, timelapse)
+    
+    def get_weakly_component(self):
+        filtered_components = filter(lambda x: len(x) > 10, nx.weakly_connected_components(self.G))
+        
+        return filtered_components
+    
+    def get_strongly_component(self):
+        pass
