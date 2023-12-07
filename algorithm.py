@@ -14,6 +14,7 @@ class OutbreakDetection:
         self.network = network
         self.G = self.network.G
         self.budget = B
+        self.starting_points = self.__get_starting_point()
 
         # objective function
         if(of not in OBJECTIVE_FUNCTION):
@@ -76,16 +77,27 @@ class OutbreakDetection:
             total_reward += base_reward * (node / 1000) / (i + 1)
         return total_reward
     
-    def __set_starting_point(self):
-        pass
+    def __get_starting_point(self):
+        starting_points = []
+        for component in self.get_weakly_component():
+            earlist_time = float('inf')
+            starting_point = {}
+            sub_graph = nx.subgraph(self.G, component)
+            for u, v, d in sub_graph.edges(data=True):
+                if(d['Timestamp'] < earlist_time):
+                    # record the new edge
+                    earlist_time = d['Timestamp']
+                    starting_point['source'], starting_point['target'], starting_point['time'] = u, v, d['Timestamp']
+            starting_points.append(starting_point)
+        return starting_points
 
     def __detection_likelihood(self, placement):
         """
         Return: 0 or 1
         """
-        # whether the node is in the weakly connected components
+        # whether the node is in the same component with start point
         for n in placement:
-            if not any(n in component for component in self.get_components()):
+            if not any(n in component for component in self.get_weakly_component()):
                 return 0
         
             # self.G.predecessors(n)
@@ -131,8 +143,8 @@ class OutbreakDetection:
 
         return (A, timelapse)
     
-    def get_weakly_component(self):
-        filtered_components = filter(lambda x: len(x) > 10, nx.weakly_connected_components(self.G))
+    def get_weakly_component(self, threshold=10):
+        filtered_components = filter(lambda x: len(x) > threshold, nx.weakly_connected_components(self.G))
         
         return filtered_components
     
