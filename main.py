@@ -1,6 +1,9 @@
 from network import Network
 from algorithm import OutbreakDetection
+import logging
 # initialization, data pre-processing
+
+logging.basicConfig(level=logging.INFO)
 
 mt_n = Network(
     dataset_dir='dataset', 
@@ -21,9 +24,8 @@ rt_n = Network(
 mt_n.simulate_cost(rt_n)
 
 # run algorithm
-algo = OutbreakDetection(mt_n, 10, 'DL')
-# print(algo.get_component())
-# print(algo.naive_greedy('UC'))
+algo = OutbreakDetection(mt_n, 1000, 'DL')
+print(algo.naive_greedy('UC'))
 
 # solution quality
 

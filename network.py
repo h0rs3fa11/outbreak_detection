@@ -3,7 +3,7 @@ import networkx as nx
 import random
 
 class Network:
-    def __init__(self, dataset_dir, original_file_name, result_file_name, follower_file_name, timestamp_file_name, activity, init=False):
+    def __init__(self, dataset_dir, original_file_name, result_file_name, follower_file_name, timestamp_file_name, activity, init=False, testing=True):
         self.activities = ['MT', 'RT']
         if(activity not in self.activities):
             raise Exception('Invalid activity type')
@@ -11,7 +11,7 @@ class Network:
         self.dataset_dir = dataset_dir
         self.node_cost = {}
         self.graph = self.dataset_dir + '/' + result_file_name
-
+        self.testing = testing
         # retweet or mention
         self.file_path = self.dataset_dir + '/' + original_file_name
 

@@ -2,19 +2,32 @@ import time
 from queue import PriorityQueue
 from network import Network
 import networkx as nx
+import logging
+from tqdm import tqdm
+import random
 
 COST_TYPE = ['UC', 'CB']
 OBJECTIVE_FUNCTION = ['DT', 'DL', 'PA']
 
 class OutbreakDetection:
-    def __init__(self, network, B, of):
+    def __init__(self, network, B, of, testing=True):
+        logging.info('Initializing...')
         self.cost_types = ['UC', 'CB']
         if(not isinstance(network, Network)):
             raise TypeError('network must be a Network type')
         self.network = network
         self.G = self.network.G
         self.budget = B
+        self.weakly_nodes, self.weakly_component = self.__init_weakly_component()
+        # if testing:
+        #     number_to_use = int(0.3 * len(self.weakly_component))
+        #     sub_nodes = []
+        #     sub_nodes = [n for i in range(number_to_use) for n in self.weakly_component[i]]
+        #     self.G = nx.subgraph(self.G, sub_nodes)
         self.starting_points = self.__get_starting_point()
+
+        # store the possibility(0 or 1) of each node then we don't have to calculate it in every iteration
+        self.detection_likelihood_nodes = {}
 
         # objective function
         if(of not in OBJECTIVE_FUNCTION):
@@ -23,27 +36,30 @@ class OutbreakDetection:
 
     def naive_greedy(self, cost_type):
         """
-        G: Netowrk graph
-        B: budget
         type: unit code or variable cost
 
         Return: optimal set, time spending
         """
         # Initalization
         A = []
-        
+        # tmp_A = []
         total_cost = 0
         tmpG = self.G
         timelapse, start_time = [], time.time()
 
+        logging.info('Running naive greedy algorithm...')
         while cost_type == 'UC' and len(A) < self.budget or cost_type == 'CB' and total_cost < self.budget:
-            max_reward = -1
-            for node in tmpG.nodes():
+            max_reward = 0
+            logging.info(f'Current placement: {A}, cost type: {cost_type}, budget left: {self.budget - total_cost}')
+            for node in tqdm(tmpG.nodes()):
                 r = self.marginal_gain(A, node, cost_type)
 
                 if r > max_reward:
                     max_reward_node = node
                     max_reward = r
+            if(len(A) == 0): 
+                logging.info('No node can benefit, exit')
+                break
             A.append(max_reward_node)
 
             total_cost += self.network.node_cost[max_reward_node]
@@ -58,28 +74,21 @@ class OutbreakDetection:
         r = self.reward(current_place + [node]) - self.reward(current_place)
         return r if cost_type == 'UC' else r / self.network.node_cost[node]
     
-    def reward(self, placement, of):
+    def reward(self, placement):
         """ Get reward of placement """
-        if of == 'DL':
+        if self.of == 'DL':
             total_reward = self.__detection_likelihood(placement)
-        elif of == 'DT':
+        elif self.of == 'DT':
             total_reward = self.__detection_time(placement)
         else:
             total_reward = self.__population_affected(placement)
             
-        """ TODO: This is a temporary version of calculating reward, it simply returns a value that is less than previous one, to satisfy the submodularity property """
-        base_reward = 100
-        total_reward = 0
-        if not placement: return 0
-        # Reward calculation logic
-        for i, node in enumerate(placement):
-            # Decrease reward incrementally for each subsequent node
-            total_reward += base_reward * (node / 1000) / (i + 1)
         return total_reward
     
     def __get_starting_point(self):
         starting_points = []
-        for component in self.get_weakly_component():
+        components = self.weakly_component()
+        for component in components:
             earlist_time = float('inf')
             starting_point = {}
             sub_graph = nx.subgraph(self.G, component)
@@ -97,10 +106,24 @@ class OutbreakDetection:
         """
         # whether the node is in the same component with start point
         for n in placement:
-            if not any(n in component for component in self.get_weakly_component()):
-                return 0
-        
-            # self.G.predecessors(n)
+            if n in self.detection_likelihood_nodes and self.detection_likelihood[n] == 1:
+                return 1
+            
+            elif n not in self.detection_likelihood_nodes:
+                for start in self.starting_points:
+                    if not self.__in_same_weakly_component(start['source'], n):
+                        continue
+                    # get component id
+                    component_id = self.weakly_nodes.get(start['source'])
+
+                    # get component
+                    sub_graph = nx.subgraph(self.G, self.weakly_component[component_id])
+                    if nx.has_path(sub_graph, start['source'], n):
+                        self.detection_likelihood_nodes[n] = 1
+                        return 1
+                self.detection_likelihood_nodes[n] = 0
+
+        return 0
 
     def __detection_time():
         pass
@@ -143,10 +166,26 @@ class OutbreakDetection:
 
         return (A, timelapse)
     
-    def get_weakly_component(self, threshold=10):
-        filtered_components = filter(lambda x: len(x) > threshold, nx.weakly_connected_components(self.G))
-        
+    def __get_weakly_component(self, threshold=10):
+        filtered_components = list(filter(lambda x: len(x) > threshold, nx.weakly_connected_components(self.G)))
         return filtered_components
+    
+    # avoid to query weakly component frequently
+    def __init_weakly_component(self, threshold=10):
+        node_to_component = {}
+        weakly_component = {}
+        component_id = 0
+        
+        filtered = self.__get_weakly_component()
+        for component in filtered:
+            weakly_component[component_id] = component
+            for node in component:
+                node_to_component[node] = component_id
+            component_id += 1
+        return node_to_component, weakly_component
+    
+    def __in_same_weakly_component(self, node1, node2):
+        return self.weakly_nodes.get(node1) == self.weakly_nodes.get(node2)
     
     def get_strongly_component(self):
         pass
