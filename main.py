@@ -24,8 +24,10 @@ rt_n = Network(
 mt_n.simulate_cost(rt_n)
 
 # run algorithm
-algo = OutbreakDetection(mt_n, 500, 'DL')
+algo = OutbreakDetection(mt_n, 1000, 'DL')
 print(algo.naive_greedy('UC'))
+print(algo.naive_greedy('CB'))
+print(algo.celf())
 
 # solution quality
 

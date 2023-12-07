@@ -21,7 +21,7 @@ class OutbreakDetection:
         if testing:
             random_seed = 1  # 您可以选择任意的数字作为种子
             random.seed(random_seed)
-            num_nodes_to_sample = int(0.1 * self.G.number_of_nodes())
+            num_nodes_to_sample = int(0.3 * self.G.number_of_nodes())
             sampled_nodes = random.sample(list(self.G.nodes()), num_nodes_to_sample)
             subgraph = self.G.subgraph(sampled_nodes).copy()
             self.G = subgraph
@@ -47,12 +47,12 @@ class OutbreakDetection:
         A = []
         # tmp_A = []
         total_cost = 0
-        tmpG = self.G
+        tmpG = self.G.copy()
         timelapse, start_time = [], time.time()
         round_count = 1
 
         logging.info('Running naive greedy algorithm...')
-        while cost_type == 'UC' and len(A) < self.budget or cost_type == 'CB' and total_cost < self.budget:
+        while total_cost < self.budget:
             max_reward = 0
             max_reward_node = None
 
@@ -75,18 +75,13 @@ class OutbreakDetection:
             logging.info(f'Finish the {round_count} round, the node with max reward is: {max_reward_node}, reward is {max_reward}')
             round_count += 1
 
-            if cost_type == 'CB':
-                total_cost += self.network.node_cost[max_reward_node]
-            else:
-                total_cost += 1
-            # if(max_reward_node == 196544):
-            #     pass
+            total_cost += self.network.node_cost[max_reward_node]
+
             if max_reward_node: tmpG.remove_node(max_reward_node)
             timelapse.append(time.time() - start_time)
 
         logging.info(f'The final placement has rewards {self.reward(A)}')
-        return (A, timelapse)
-
+        return (A, timelapse[-1])
 
     def marginal_gain(self, current_place, node, cost_type):
         if current_place:
@@ -123,7 +118,7 @@ class OutbreakDetection:
 
     def __detection_likelihood(self, placement):
         """
-        Return: 0 or 1
+        Return: 0 to 1
         The fraction of all detected cascade
         """
         # whether the node is in the same component with start point
@@ -170,7 +165,7 @@ class OutbreakDetection:
     def __population_affected():
         pass
 
-    def greedy_lazy_forward(self):
+    def greedy_lazy_forward(self, cost_type):
         """
         G: graph
         B: budget
@@ -183,28 +178,46 @@ class OutbreakDetection:
         timelapse, start_time = [], time.time()
         R = PriorityQueue(self.G.number_of_nodes())
 
-        if self.cost_type not in COST_TYPE: 
-            raise ValueError(f'cost_type {self.cost_type} is not allowed')
+        if cost_type not in COST_TYPE: 
+            raise ValueError(f'cost_type {cost_type} is not allowed')
         
         # first round
         for node in self.G.nodes():
-            R.put((self.marginal_gain(A, node, self.cost_type) * -1, node))
-                
-        while self.cost_type == 'UC' and len(A) < self.budget or self.cost_type == 'CB' and self.cost(A) < self.budget:
-            top_node = R.get()
+            R.put((self.marginal_gain(A, node, cost_type) * -1, node))
+        
+        pbar = tqdm(total=self.budget)
+
+        while sum(self.network.node_cost[node] for node in A) < self.budget:
+            gain, top_node = R.get()
 
             # Re-evaluate the top node
-            top_node[0] = self.marginal_gain(A, top_node[1], self.cost_type)
+            current_gain = self.marginal_gain(A, top_node, cost_type)
 
-            # insert into the priority queue
-            R.put(top_node)
+            if current_gain == gain * -1:
+                # If the top node's gain hasn't changed, add it to A
+                A.append(top_node)
+                pbar.update(sum(self.network.node_cost[node] for node in A) - pbar.n)
+            else:
+                # Otherwise, reinsert it with the updated gain
+                R.put((current_gain * -1, top_node))
 
-            A.append(R.get()[1])
-
-        timelapse.append(time.time() - start_time)
+            timelapse.append(time.time() - start_time)
 
         return (A, timelapse)
     
+    def celf(self):
+        logging.info('CELF...')
+        result_UC, time_UC = self.greedy_lazy_forward('UC')
+        result_CB, time_CB = self.greedy_lazy_forward('CB')
+
+        reward_UC = self.reward(result_UC)
+        reward_CB = self.reward(result_CB)
+        time_UC.extend(time_CB)
+        time_log = sorted(time_UC)
+
+        logging.info(f'CELF: the reward result of UC is {reward_UC}, and CB is {reward_CB}')
+        return result_UC, time_log[-1] if reward_UC > reward_CB else result_CB, time_log[-1]
+
     def __get_weakly_component(self, threshold=10):
         filtered_components = list(filter(lambda x: len(x) > threshold, nx.weakly_connected_components(self.G)))
         return filtered_components
