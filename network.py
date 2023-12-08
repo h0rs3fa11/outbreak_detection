@@ -1,9 +1,10 @@
 import pandas as pd
 import networkx as nx
 import random
+import os
 
 class Network:
-    def __init__(self, dataset_dir, original_file_name, result_file_name, follower_file_name, timestamp_file_name, activity, init=False, testing=True):
+    def __init__(self, dataset_dir, original_file_name, result_file_name, follower_file_name, timestamp_file_name, activity):
         self.activities = ['MT', 'RT']
         if(activity not in self.activities):
             raise Exception('Invalid activity type')
@@ -11,7 +12,6 @@ class Network:
         self.dataset_dir = dataset_dir
         self.node_cost = {}
         self.graph = self.dataset_dir + '/' + result_file_name
-        self.testing = testing
         # retweet or mention
         self.file_path = self.dataset_dir + '/' + original_file_name
 
@@ -19,7 +19,7 @@ class Network:
 
         self.timestamp_path = self.dataset_dir + '/' + timestamp_file_name
 
-        if not init:
+        if os.path.exists(self.graph):
             self.pre_processing(activity)
         
         self.G = self.load_network()
@@ -68,10 +68,7 @@ class Network:
 
         return G
 
-    def simulate_cost(self, n2):
-        if(not isinstance(n2, Network)):
-            raise Exception('Wrong n2 type')
-        
-        nodes = set(self.G.nodes()).union(set(n2.G.nodes()))
+    def simulate_cost(self):
+        nodes = set(self.G.nodes())
         for n in nodes:
             self.node_cost[n] = random.randint(1, 1000)

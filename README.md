@@ -50,8 +50,8 @@ mt_n.simulate_cost(rt_n)
 
 - [ ] Define a function to calculate penalty reduction
 
-  - [x] detection time
-  - [ ] detection likelihood
+  - [ ] detection time
+  - [x] detection likelihood
   - [ ] population affected
 
 - [x] Greedy/CELF algorithm
@@ -63,3 +63,5 @@ mt_n.simulate_cost(rt_n)
 - [ ] Testing
 
 - [ ] Result graph
+
+- [ ] configparser(optional)
