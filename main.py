@@ -9,8 +9,15 @@ parser = argparse.ArgumentParser(description='Find the best placement for outbre
 parser.add_argument('-test', '--test', choices=[1, 0], default=1, help='Whether to use a smaller dataset for testing')
 parser.add_argument('-g', '--graph', required=True, choices=['mt', 'rt'], help='indicate which graph to use, mt(mention) or rt(retweet)')
 parser.add_argument('-b', '--budget', required=True, help='total budget', type=int)
-parser.add_argument('-obj', '--objective_function', required=True, choices=['DL', 'DT', 'PA'], help='objective functions')
-parser.add_argument('-algo', '--algorithm', required=True, choices=['uc-greedy', 'cb-greedy', 'celf'], help='algorithm to find the placement for outbreak detection\n uc-greedy: unit cost case, cb-greedy: variable cost case, celf: CELF algorithm')
+
+sub_parsers = parser.add_subparsers(help='sub command help')
+
+subparser = sub_parsers.add_parser('algorithm', help='algorithm: choose algorithms and objective functions')
+subparser.add_argument('-obj', '--objective_function', required=True, choices=['DL', 'DT', 'PA'], help='objective functions')
+subparser.add_argument('-algo', '--algorithm', required=True, choices=['uc-greedy', 'cb-greedy', 'celf'], help='algorithm to find the placement for outbreak detection\n uc-greedy: unit cost case, cb-greedy: variable cost case, celf: CELF algorithm')
+
+subparser_heuristic = sub_parsers.add_parser('heuristic', help='heuristic: use heuristic methods to find placement')
+subparser_heuristic.add_argument('-f', '--function', required=True, choices=['inlinks', 'outlinks', 'random', 'followers'])
 
 args = parser.parse_args()
 

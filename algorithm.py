@@ -238,6 +238,10 @@ class OutbreakDetection:
     
     def __in_same_weakly_component(self, node1, node2):
         return self.weakly_nodes[node1] == self.weakly_nodes[node2]
-    
-    def get_strongly_component(self):
-        pass
+
+    def get_bound(self, placement):
+        raise Exception('not implemented')
+
+    def heuristics(self, factor):
+        raise Exception('not implemented')
+        
