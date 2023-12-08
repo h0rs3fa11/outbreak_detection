@@ -19,8 +19,6 @@ class OutbreakDetection:
         self.G = self.network.G
         self.budget = B
         if testing:
-            random_seed = 1  # 您可以选择任意的数字作为种子
-            random.seed(random_seed)
             num_nodes_to_sample = int(0.3 * self.G.number_of_nodes())
             sampled_nodes = random.sample(list(self.G.nodes()), num_nodes_to_sample)
             subgraph = self.G.subgraph(sampled_nodes).copy()
@@ -28,7 +26,7 @@ class OutbreakDetection:
 
         self.weakly_nodes, self.weakly_component = self.__init_weakly_component()
         self.starting_points = self.__get_starting_point()
-
+        self.followers = self.__extract_followers()
         # store the possibility(0 to 1) of each node then we don't have to calculate it in every iteration
         self.detection_likelihood_nodes = {}
 
@@ -242,6 +240,56 @@ class OutbreakDetection:
     def get_bound(self, placement):
         raise Exception('not implemented')
 
-    def heuristics(self, factor):
-        raise Exception('not implemented')
+    def heuristics(self, func_name):
+        """
+        Return: Placement A and total reward
+        """
+        total_cost = 0
+        A = []
+        left_nodes = list(self.G.nodes())
+
+        while total_cost < self.budget:
+            if func_name == 'random':
+                new_node = self.__get_random_nodes(left_nodes)
+            elif func_name == 'inlinks':
+                new_node = self.__get_links_nodes(left_nodes, 'in')
+            elif func_name == 'outlinks':
+                new_node = self.__get_links_nodes(left_nodes, 'out')
+            elif func_name == 'followers':
+                new_node = self.__get_followers_count_nodes(left_nodes)
+            else:
+                raise ValueError(f'{func_name} not be supported')
+            A.append(new_node)
+            total_cost += self.network.node_cost[new_node]
         
+        return self.reward(A)
+
+    def __get_random_nodes(self, nodes):
+        return random.choice(nodes)
+    
+    def __get_links_nodes(self, nodes, d):
+        max_degree = [0, -1]
+        for n in nodes:
+            if d == 'in':
+                degree = self.G.in_degree(n)
+            elif d == 'out':
+                degree = self.G.out_degree(n)
+            else:
+                raise ValueError(f'degree type {d} is invalid')
+            if degree > max_degree[1]:
+                max_degree = [n, degree]
+        return max_degree[0]
+
+    def __get_followers_count_nodes(self, nodes):
+        max_follower = [0, -1]
+        for n in nodes:
+            follower_count = 0 if n not in self.followers else self.followers[n]
+            if follower_count > max_follower[1]:
+                max_follower = [n, follower_count]
+        return max_follower[0]
+
+    def __extract_followers(self):
+        follower_map ={}
+        for _, v, d in self.G.edges(data=True):
+            follower_map[v] = d['Follower_count']
+        return follower_map
