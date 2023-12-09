@@ -4,7 +4,7 @@ import logging
 import argparse
 import random
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 parser = argparse.ArgumentParser(description='Find the best placement for outbreak detection')
 parser.add_argument('-test', '--test', type=int, choices=[1, 0], default=1, help='Whether to use a smaller dataset for testing')
@@ -53,7 +53,7 @@ if args.command == 'algorithm':
         print(algo.naive_greedy('UC'))
     elif args.algorithm == 'cb-greedy':
         print(algo.naive_greedy('CB'))
-    else:
+    elif args.algorithm == 'celf':
         print(algo.celf())
 
 elif args.command == 'heuristic':
