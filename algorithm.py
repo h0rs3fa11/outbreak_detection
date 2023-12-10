@@ -9,6 +9,7 @@ import math
 import os
 import csv
 import pandas as pd
+from utils.utils import intersect_all_sets, find_minimum_activity_time
 
 COST_TYPE = ['UC', 'CB']
 OBJECTIVE_FUNCTION = ['DT', 'DL', 'PA']
@@ -62,11 +63,14 @@ class OutbreakDetection:
         self.detection_likelihood_nodes = {}
         # store the detection time of each node then we don't have to calculate it in every iteration
         self.detection_time_nodes = {}
+
         # objective function
         if(of not in OBJECTIVE_FUNCTION):
             raise ValueError('Objective function is not right')
         self.of = of
 
+        if self.of == 'PA':
+            self.cascades = self.__information_cascade()
     def __time_span(self):
         largest_timestamp = float('-inf') 
         smallest_timestamp = float('inf') 
@@ -82,6 +86,11 @@ class OutbreakDetection:
             raise ValueError('Couldn\'t find timestamp')
         else:
             return largest_timestamp - smallest_timestamp
+    
+    def __remove_startpoint_from_p(self, G):
+        for item in self.starting_points.values():
+            G.remove_node(item['source'])
+            G.remove_node(item['target'])
 
     def naive_greedy(self, cost_type):
         """
@@ -96,6 +105,8 @@ class OutbreakDetection:
         tmpG = self.G.copy()
         timelapse, start_time = [], time.time()
         round_count = 1
+
+        self.__remove_startpoint_from_p(tmpG)
 
         logging.info('Running naive greedy algorithm...')
         while total_cost < self.budget:
@@ -148,7 +159,7 @@ class OutbreakDetection:
         return total_reward
     
     def __get_starting_point(self):
-        starting_points = []
+        starting_points = {}
         components = self.weakly_component
         for c_id, component in components.items():
             earlist_time = float('inf')
@@ -159,8 +170,7 @@ class OutbreakDetection:
                     # record the new edge
                     earlist_time = d['Timestamp']
                     starting_point['source'], starting_point['target'], starting_point['time'] = u, v, d['Timestamp']
-            starting_point['id'] = c_id
-            starting_points.append(starting_point)
+            starting_points[c_id] = starting_point
         return starting_points
     
     def __can_detect(self, placement):
@@ -189,6 +199,7 @@ class OutbreakDetection:
                 
                 # For each cascade
                 for start in self.starting_points:
+                    # cannot be the starting point itself
                     if start['target'] == n:
                         continue
                     if not self.__in_same_weakly_component(start['target'], n):
@@ -220,14 +231,11 @@ class OutbreakDetection:
 
         return len(detected_outbreak_dl) / all_cascade
     
-    def __logarithmic_scaling(self, t):
-        return 1 - math.log(t + 1) / math.log(self.t_max + 1)
-    
     def __penalty_reduction_DT(self, T):
         if T == float('inf'):
             return 0
         else:
-            return self.__logarithmic_scaling(T)
+            return 1 - T / self.t_max
 
     def __detection_time(self, placement):
         """
@@ -254,12 +262,11 @@ class OutbreakDetection:
             shorted_path = nx.shortest_path(self.G, start_edge['target'], node)
 
             # directly connected with the starting point
-            if len(shorted_path) < 2:
-                shortest_time = 0
-            else:
-                time = self.G[shorted_path[-2]][shorted_path[-1]]['Timestamp'] - start_edge['time']
-                if time < shortest_time:
-                    shortest_time = time
+            # if len(shorted_path) < 2:
+            #     shortest_time = 0
+            time = self.G[shorted_path[-2]][shorted_path[-1]]['Timestamp'] - start_edge['time']
+            if time < shortest_time:
+                shortest_time = time
             self.detection_time_nodes[node] = shortest_time
         if(shortest_time) < 0:
             raise ValueError(f'{shortest_time} cannot be negative')
@@ -267,9 +274,60 @@ class OutbreakDetection:
 
         return r
 
+    def __information_cascade(self):
+        """
+        Record the information cascade details
+        {
+          "node_id": 
+          {
+              "predecessor_nodeid": "activity time",
+               "predecessor_nodeid": "activity time"
+          }
+        }
+        """
 
-    def __population_affected():
-        pass
+        cascades = {}
+
+        for component_id, node_list in self.weakly_component.items():
+            start = self.starting_points[component_id]
+            for node in node_list:
+                if not nx.has_path(self.G, start['target'], node):
+                    continue
+                paths = nx.all_simple_paths(self.G, start['target'], node)
+                preinfo = {}
+                for p in paths:
+                    preinfo[p[-2]] = self.G[p[-2]][p[-1]]['Timestamp']
+                cascades[node] = preinfo
+        
+        return cascades
+    
+    def __population_affected(self, placement):
+        """
+        Return: fraction of all nodes in that component
+        """
+        affected_of_placement = []
+        all_affected = len(self.cascades.keys())
+
+        for node in placement:
+            affected = set()
+            if node not in self.cascades:
+                # not detect
+                affected = set(self.cascades.keys())
+            else:
+                component_id = self.weakly_nodes[node]
+                    
+                detect_time_at = find_minimum_activity_time(self.cascades[node])
+
+                for n, cascade in self.cascades.items():
+                    # check whether node n is affected before detect_time_at
+                    for pre, t in cascade.items():
+                        if t < detect_time_at and pre != node:
+                            affected.add(n)
+            affected_of_placement.append(affected)
+
+        # get the intersection of affected group of each selected node
+        affected_node = intersect_all_sets(affected_of_placement)
+        return 1 - len(affected_node) / all_affected
 
     def greedy_lazy_forward(self, cost_type):
         """
@@ -282,19 +340,22 @@ class OutbreakDetection:
         # Initalization
         A = []
         timelapse, start_time = [], time.time()
-        R = PriorityQueue(self.G.number_of_nodes())
+        tmpG = self.G.copy()
+        self.__remove_startpoint_from_p(tmpG)
+
+        R = PriorityQueue(tmpG.number_of_nodes())
 
         if cost_type not in COST_TYPE: 
             raise ValueError(f'cost_type {cost_type} is not allowed')
         
         # first round
         logging.info('First round, calculate all rewards')
-        for node in tqdm(self.G.nodes()):
+        for node in tqdm(tmpG.nodes()):
             R.put((self.marginal_gain(A, node, cost_type) * -1, node))
         
         pbar = tqdm(total=self.budget)
 
-        logging.info('Start iterating...')
+        logging.info('\Start iterating...')
 
         costs = sum(self.network.node_cost[node] for node in A)
         while costs < self.budget:
