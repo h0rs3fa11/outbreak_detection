@@ -32,7 +32,7 @@ class OutbreakDetection:
             else:
                 c = 0
                 while c <= 5:
-                    num_nodes_to_sample = int(0.3 * self.G.number_of_nodes())
+                    num_nodes_to_sample = int(0.6 * self.G.number_of_nodes())
                     sampled_nodes = random.sample(list(self.G.nodes()), num_nodes_to_sample)
                     subgraph = self.G.subgraph(sampled_nodes).copy()
 
@@ -166,6 +166,9 @@ class OutbreakDetection:
             starting_point = {}
             sub_graph = nx.subgraph(self.G, component)
             for u, v, d in sub_graph.edges(data=True):
+                # self loop
+                if u == v:
+                    continue
                 if(d['Timestamp'] < earlist_time):
                     # record the new edge
                     earlist_time = d['Timestamp']
@@ -198,14 +201,14 @@ class OutbreakDetection:
                     return detected_outbreak_dl, detected_info
                 
                 # For each cascade
-                for start in self.starting_points:
+                for cid, start in self.starting_points.items():
                     # cannot be the starting point itself
                     if start['target'] == n:
                         continue
                     if not self.__in_same_weakly_component(start['target'], n):
                         continue
                     # get component id
-                    component_id = start['id']
+                    component_id = cid
 
                     # get component
                     sub_graph = nx.subgraph(self.G, self.weakly_component[component_id])
@@ -305,6 +308,7 @@ class OutbreakDetection:
         """
         Return: fraction of all nodes in that component
         """
+        # TODO: consider followers
         affected_of_placement = []
         all_affected = len(self.cascades.keys())
 
@@ -380,7 +384,17 @@ class OutbreakDetection:
         return (A, total_time)
     
     def celf(self):
+        """Returns
+        {
+            'algo': 'celf',
+            'placement': BEST_PLACEMENT,
+            'reward': xxx,
+            'runtime': xxx(s)
+        }
+        """
         logging.info('CELF...')
+        result = {}
+        result['algo'] = 'celf'
         result_UC, time_UC = self.greedy_lazy_forward('UC')
         result_CB, time_CB = self.greedy_lazy_forward('CB')
 

@@ -40,19 +40,17 @@ mt_n.simulate_cost(rt_n)
 
 ## TODOs
 
-### Dataset preprocessing
-
 - [x] Count the number of followers for nodes in the retweet and mention graph.
 
 - [x] Simulate the cost of monitoring each node, create a new graph to indicate the cost
 
 - [x] Extract information cascade
 
-- [ ] Define a function to calculate penalty reduction
+- [x] Define a function to calculate penalty reduction
 
   - [x] detection time
   - [x] detection likelihood
-  - [ ] population affected
+  - [x] population affected
 
 - [x] Greedy/CELF algorithm
 
