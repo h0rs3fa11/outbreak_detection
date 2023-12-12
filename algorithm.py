@@ -135,7 +135,7 @@ class OutbreakDetection:
                 logging.debug(f'Found {max_reward_node} with {max_reward} marginal benefit')
                 A.append(max_reward_node)
                 time_logs[len(A)] = time.time() - start_time
-                logging.info(f'Selected {len(A)} nodes, with reward {self.reward(A)}, spent {time_logs[len(A)]}')
+                logging.info(f'Selected {len(A)} nodes, spent {time_logs[len(A)]}')
 
             else: 
                 logging.info('No node can benefit, exit')
@@ -414,7 +414,7 @@ class OutbreakDetection:
                 # If the top node's gain hasn't changed, add it to A
                 A.append(top_node)
                 timelapse[len(A)] = time.time() - start_time
-                logging.info(f'Selected {len(A)} nodes, with reward {self.reward(A)}, spent {timelapse[len(A)]}')
+                logging.info(f'Selected {len(A)} nodes, spent {timelapse[len(A)]}')
                 pbar.update(costs - pbar.n)
             else:
                 # Otherwise, reinsert it with the updated gain
