@@ -338,31 +338,23 @@ class OutbreakDetection:
 
         for node in placement:
             affected = set()
-            if node in self.population_affected:
-                affected = self.population_affected[node]
+            if node not in self.cascades:
+                # not detect
+                affected = set(self.cascades.keys())
             else:
-                if node not in self.cascades:
-                    # not detect
-                    affected = set(self.cascades.keys())
-                else:
-                    component_id = self.weakly_nodes[node]
-                        
-                    detect_time_at = find_minimum_activity_time(self.cascades[node])
-                    if not detect_time_at:
+                component_id = self.weakly_nodes[node]
+                    
+                detect_time_at = find_minimum_activity_time(self.cascades[node])
+
+                for n, cascade in self.cascades.items():
+                    # whether the cascade nodes and sensor are in the same component
+                    if component_id != self.weakly_nodes[n]:
+                        affected.add(n)
                         continue
-                    for n, cascade in self.cascades.items():
-                        # whether the cascade nodes and sensor are in the same component
-                        if component_id != self.weakly_nodes[n]:
+                    # check whether node n is affected before detect_time_at
+                    for pre, t in cascade.items():
+                        if t < detect_time_at and pre != node:
                             affected.add(n)
-                            continue
-                        # check whether node n is affected before detect_time_at
-                        for pre, t in cascade.items():
-                            try:
-                                if t < detect_time_at and pre != node:
-                                    affected.add(n)
-                            except:
-                                pass
-                    self.population_affected[node] = affected
             affected_of_placement.append(affected)
 
         # get the intersection of affected group of each selected node
