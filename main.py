@@ -3,6 +3,8 @@ from algorithm import OutbreakDetection
 import logging
 import argparse
 import random
+import json
+import os
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -48,14 +50,28 @@ algo = OutbreakDetection(network, args.budget, args.objective_function, testing=
 
 if args.command == 'algorithm':
     if args.algorithm == 'uc-greedy':
-        print(algo.naive_greedy('UC'))
+        result = algo.naive_greedy('UC')
     elif args.algorithm == 'cb-greedy':
-        print(algo.naive_greedy('CB'))
+        result = algo.naive_greedy('CB')
     elif args.algorithm == 'celf':
-        print(algo.celf())
+        result = algo.celf()
 
 elif args.command == 'heuristic':
-    algo.heuristics(args.function)
+    result = algo.heuristics(args.function)
+
+logging.info(result)
+
+result_path = 'result.json'
+results = []
+
+# record the result
+if os.path.exists(result_path):
+    with open(result_path, 'r') as f:
+        results = json.loads(f.read())
+
+results.append(result)
+with open(result_path, 'w') as f:
+    json.dump(results, f)
 
 # solution quality
 

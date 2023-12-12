@@ -9,7 +9,7 @@ import json
 import os
 import csv
 import pandas as pd
-from utils.utils import intersect_all_sets, find_minimum_activity_time
+from utils.utils import intersect_all_sets, find_minimum_activity_time, output
 
 COST_TYPE = ['UC', 'CB']
 OBJECTIVE_FUNCTION = ['DT', 'DL', 'PA']
@@ -63,6 +63,8 @@ class OutbreakDetection:
         self.detection_likelihood_nodes = {}
         # store the detection time of each node then we don't have to calculate it in every iteration
         self.detection_time_nodes = {}
+        # store the population affected of each node then we don't have to calculate it in every iteration
+        self.population_affected = {}
 
         # objective function
         if(of not in OBJECTIVE_FUNCTION):
@@ -144,8 +146,9 @@ class OutbreakDetection:
 
         if total_cost >= self.budget:
             logging.debug('Budget is exhausted')
-        logging.info(f'The final placement has rewards {self.reward(A)}')
-        return (A, time.time() - start_time)
+        final_reward = self.reward(A)
+        logging.info(f'The final placement has rewards {final_reward}')
+        return output(f'greedy-{cost_type}', A, final_reward, time.time() - start_time)
 
     def marginal_gain(self, current_place, node, cost_type):
         if current_place:
@@ -335,23 +338,31 @@ class OutbreakDetection:
 
         for node in placement:
             affected = set()
-            if node not in self.cascades:
-                # not detect
-                affected = set(self.cascades.keys())
+            if node in self.population_affected:
+                affected = self.population_affected[node]
             else:
-                component_id = self.weakly_nodes[node]
-                    
-                detect_time_at = find_minimum_activity_time(self.cascades[node])
-
-                for n, cascade in self.cascades.items():
-                    # whether the cascade nodes and sensor are in the same component
-                    if component_id != self.weakly_nodes[n]:
-                        affected.add(n)
+                if node not in self.cascades:
+                    # not detect
+                    affected = set(self.cascades.keys())
+                else:
+                    component_id = self.weakly_nodes[node]
+                        
+                    detect_time_at = find_minimum_activity_time(self.cascades[node])
+                    if not detect_time_at:
                         continue
-                    # check whether node n is affected before detect_time_at
-                    for pre, t in cascade.items():
-                        if t < detect_time_at and pre != node:
+                    for n, cascade in self.cascades.items():
+                        # whether the cascade nodes and sensor are in the same component
+                        if component_id != self.weakly_nodes[n]:
                             affected.add(n)
+                            continue
+                        # check whether node n is affected before detect_time_at
+                        for pre, t in cascade.items():
+                            try:
+                                if t < detect_time_at and pre != node:
+                                    affected.add(n)
+                            except:
+                                pass
+                    self.population_affected[node] = affected
             affected_of_placement.append(affected)
 
         # get the intersection of affected group of each selected node
@@ -443,7 +454,9 @@ class OutbreakDetection:
         time_log = time_UC + time_CB
 
         logging.info(f'CELF: the reward result of UC is {reward_UC}, and CB is {reward_CB}')
-        return result_UC, time_log if reward_UC > reward_CB else result_CB, time_log
+        logging.debug(f'CELF: the placement of UC is {result_UC}, and CB is {result_CB}')
+
+        return output('celf', result_UC, reward_UC, time_log) if reward_UC > reward_CB else output('celf', result_CB, reward_CB, time_log)
 
     def __get_weakly_component(self, threshold=10):
         filtered_components = list(filter(lambda x: len(x) > threshold, nx.weakly_connected_components(self.G)))
@@ -463,9 +476,6 @@ class OutbreakDetection:
                 node_to_component[node] = component_id
             component_id += 1
         return node_to_component, weakly_component
-    
-    def __in_same_weakly_component(self, node1, node2):
-        return self.weakly_nodes[node1] == self.weakly_nodes[node2]
 
     def get_bound(self, placement):
         raise Exception('not implemented')
@@ -476,23 +486,24 @@ class OutbreakDetection:
         """
         total_cost = 0
         A = []
-        left_nodes = list(self.G.nodes())
+        tmpG = self.G.copy()
 
         while total_cost < self.budget:
             if func_name == 'random':
-                new_node = self.__get_random_nodes(left_nodes)
+                new_node = self.__get_random_nodes(list(tmpG.nodes()))
             elif func_name == 'inlinks':
-                new_node = self.__get_links_nodes(left_nodes, 'in')
+                new_node = self.__get_links_nodes(list(tmpG.nodes()), 'in')
             elif func_name == 'outlinks':
-                new_node = self.__get_links_nodes(left_nodes, 'out')
+                new_node = self.__get_links_nodes(list(tmpG.nodes()), 'out')
             elif func_name == 'followers':
-                new_node = self.__get_followers_count_nodes(left_nodes)
+                new_node = self.__get_followers_count_nodes(list(tmpG.nodes()))
             else:
                 raise ValueError(f'{func_name} not be supported')
             A.append(new_node)
             total_cost += self.network.node_cost[new_node]
+            tmpG.remove_node(new_node)
         
-        return self.reward(A)
+        return {'algo': func_name, 'placement': A, 'reward': self.reward(A)}
 
     def __get_random_nodes(self, nodes):
         return random.choice(nodes)

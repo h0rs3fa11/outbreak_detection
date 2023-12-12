@@ -15,3 +15,11 @@ def find_minimum_activity_time(cascade):
         if time < min_time:
             min_time = time
     return min_time if min_time != float('inf') else None
+
+def output(algo, placement, reward, runtime): 
+    return {
+            'algo': algo,
+            'placement': placement,
+            'reward': reward,
+            'runtime': runtime
+    }

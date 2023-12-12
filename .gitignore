@@ -1,6 +1,10 @@
+# dataset/*.csv
+# dataset/*.txt
+# dataset/*.edgelist
 dataset/
 .vscode/
 .DS_Store
 __pycache__
 venv/
 experiment.sh
+result.json
