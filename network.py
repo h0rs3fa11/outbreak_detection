@@ -3,6 +3,7 @@ import networkx as nx
 import random
 import os
 import json
+import logging
 
 class Network:
     def __init__(self, dataset_dir, original_file_name, result_file_name, follower_file_name, timestamp_file_name, activity):
@@ -21,16 +22,28 @@ class Network:
         self.timestamp_path = self.dataset_dir + '/' + timestamp_file_name
 
         if not os.path.exists(self.graph):
+            logging.info('Loading the original datasets...')
             self.pre_processing(activity)
         
         self.G = self.load_network()
 
-        cost_path = 'dataset/cost.json'
+        self.cost_path = self.dataset_dir + '/cost.json'
+        self.follower_path = self.dataset_dir + '/followers.json'
 
-        if not os.path.exists(cost_path):
-            self.simulate_cost(cost_path)
+        if not os.path.exists(self.follower_path):
+            logging.info('Loading follower information...')
+            fl_edge_list = Network.read_network(self.file_path_follower, names=['Follower', 'User'])
+
+            follower_dict = fl_edge_list.groupby('User')['Follower'].apply(list).to_dict()
+            with open(self.follower_path, 'w') as f:
+                json.dump(follower_dict, f)
+
+
+        if not os.path.exists(self.cost_path):
+            logging.info('Generating cost information...')
+            self.simulate_cost(self.cost_path)
         else:
-            with open(cost_path, 'r') as f:
+            with open(self.cost_path, 'r') as f:
                 data = json.loads(f.read())
             self.node_cost = {int(key): value for key, value in data.items()}
 
@@ -54,15 +67,6 @@ class Network:
         # reverse the direction to match the information spreading flow
         merged_df['Source'], merged_df['Target'] = merged_df['Target'], merged_df['Source']
 
-        fl_edge_list = Network.read_network(self.file_path_follower, names=['Follower', 'User'])
-
-        followers_count = fl_edge_list.groupby('User').size()
-        follower_dict = followers_count.to_dict()
-
-        merged_df['Follower_count'] = merged_df['Target'].map(follower_dict)
-        merged_df['Follower_count'].fillna(0, inplace=True)
-
-        merged_df['Follower_count'] = merged_df['Follower_count'].astype(int)
 
         csv_file = self.graph
 

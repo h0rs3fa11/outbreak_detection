@@ -5,7 +5,7 @@ import networkx as nx
 import logging
 from tqdm import tqdm
 import random
-import math
+import json
 import os
 import csv
 import pandas as pd
@@ -70,7 +70,12 @@ class OutbreakDetection:
         self.of = of
 
         if self.of == 'PA':
-            self.cascades, self.followers_affected = self.__information_cascade()
+            self.cascades = self.__information_cascade()
+            self.followers_affected = 0
+            for n in self.cascades:
+                if n in self.followers:
+                    self.followers_affected += len(self.followers[n])
+
     def __time_span(self):
         largest_timestamp = float('-inf') 
         smallest_timestamp = float('inf') 
@@ -318,13 +323,8 @@ class OutbreakDetection:
                     if p[-2] not in preinfo:
                         preinfo[p[-2]] = self.G[p[-2]][p[-1]]['Timestamp']
                 cascades[node] = preinfo
-        
-        sum_of_followers = 0
-        for n in cascades:
-            if n in self.followers:
-                sum_of_followers += self.followers[n]
 
-        return cascades, sum_of_followers
+        return cascades
     
     def __population_affected(self, placement):
         """
@@ -358,12 +358,14 @@ class OutbreakDetection:
         affected_node = intersect_all_sets(affected_of_placement)
 
         # count the followers
-        follower_aff = 0
+        if len(affected_node) == all_affected:
+            return 0
+        follower_aff = set()
         for n in affected_node:
             if n in self.followers:
-                follower_aff += self.followers[n]
+                follower_aff = follower_aff.union(set(self.followers[n]))
 
-        return 1 - (len(affected_node) + follower_aff) / (all_affected + self.followers_affected)
+        return 1 - (len(affected_node) + len(follower_aff)) / (all_affected + self.followers_affected)
 
     def greedy_lazy_forward(self, cost_type):
         """
@@ -511,13 +513,15 @@ class OutbreakDetection:
     def __get_followers_count_nodes(self, nodes):
         max_follower = [0, -1]
         for n in nodes:
-            follower_count = 0 if n not in self.followers else self.followers[n]
+            follower_count = 0 if n not in self.followers else len(self.followers[n])
             if follower_count > max_follower[1]:
                 max_follower = [n, follower_count]
         return max_follower[0]
 
     def __extract_followers(self):
-        follower_map ={}
-        for _, v, d in self.G.edges(data=True):
-            follower_map[v] = d['Follower_count']
+        with open(self.network.follower_path, 'r') as f:
+            data = json.loads(f.read())
+        
+        follower_map = {int(key): value for key, value in data.items()}
+        
         return follower_map
