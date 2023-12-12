@@ -33,7 +33,7 @@ rt_n = Network(
 
 
 # Record all nodes and its simulated cost
-mt_n.simulate_cost(rt_n)
+mt_n.simulate_cost()
 
 # mt_n.node_cost['NODE_NAME']
 ```
@@ -61,5 +61,6 @@ mt_n.simulate_cost(rt_n)
 - [ ] Testing
 
 - [ ] Result graph
+  - [ ] Information saving
 
 - [ ] configparser(optional)

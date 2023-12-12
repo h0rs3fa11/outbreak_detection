@@ -32,7 +32,7 @@ class OutbreakDetection:
             else:
                 c = 0
                 while c <= 5:
-                    num_nodes_to_sample = int(0.6 * self.G.number_of_nodes())
+                    num_nodes_to_sample = int(0.1 * self.G.number_of_nodes())
                     sampled_nodes = random.sample(list(self.G.nodes()), num_nodes_to_sample)
                     subgraph = self.G.subgraph(sampled_nodes).copy()
 
@@ -129,7 +129,7 @@ class OutbreakDetection:
             else: 
                 logging.info('No node can benefit, exit')
                 break
-            logging.info(f'Finish the {round_count} round, the node with max reward is: {max_reward_node}, reward is {max_reward}')
+            logging.info(f'Finish the {round_count} round, the node with max reward is: {max_reward_node}, (marginal)reward is {max_reward}')
             round_count += 1
 
             total_cost += self.network.node_cost[max_reward_node]
@@ -137,6 +137,8 @@ class OutbreakDetection:
             if max_reward_node: tmpG.remove_node(max_reward_node)
             timelapse.append(time.time() - start_time)
 
+        if total_cost >= self.budget:
+            logging.debug('Budget is exhausted')
         logging.info(f'The final placement has rewards {self.reward(A)}')
         return (A, timelapse[-1])
 
@@ -195,31 +197,30 @@ class OutbreakDetection:
                 # If n is not in the weakly connected components that we filtered, it won't detect the outbreak
                 if n not in self.weakly_nodes:
                     continue
+                cid = self.weakly_nodes.get(n)
                 # If n is in the same component with exist nodes(self.detection_likelihood_nodes), the reward won't increase
-                if self.weakly_nodes.get(n) in detected_outbreak_dl:
+                if cid in detected_outbreak_dl:
                     # detected outbreak / all outbreaks
                     return detected_outbreak_dl, detected_info
                 
-                # For each cascade
-                for cid, start in self.starting_points.items():
-                    # cannot be the starting point itself
-                    if start['target'] == n:
-                        continue
-                    if not self.__in_same_weakly_component(start['target'], n):
-                        continue
-                    # get component id
-                    component_id = cid
+                # For the cascade of this component
+                start = self.starting_points[cid]
+                # cannot be the starting point itself
+                if start['target'] == n or start['source'] == n:
+                    continue
+                # get component
+                sub_graph = nx.subgraph(self.G, self.weakly_component[cid])
+                if nx.has_path(sub_graph, start['target'], n) or nx.has_path(sub_graph, start['source'], n):
+                    self.detection_likelihood_nodes[n] = cid
+                    detected_outbreak_dl.add(cid)
+                    detected_info[n] = cid
+                    # break
+                
+        if not detected_outbreak_dl:
+            logging.debug(f'\n{placement} cannot detect outbreak')
+        else:
+            logging.debug(f'\n{placement} can detect outbreak in components {detected_outbreak_dl}')
 
-                    # get component
-                    sub_graph = nx.subgraph(self.G, self.weakly_component[component_id])
-                    if nx.has_path(sub_graph, start['target'], n):
-                        self.detection_likelihood_nodes[n] = component_id
-                        detected_outbreak_dl.add(component_id)
-                        detected_info[n] = component_id
-                        break
-                    else:
-                        # in this case, node n and this start node are in the same component, but have no paths, then we don't need to try the start point in another component
-                        break
         return detected_outbreak_dl, detected_info
     
     def __detection_likelihood(self, placement):
@@ -335,8 +336,6 @@ class OutbreakDetection:
 
     def greedy_lazy_forward(self, cost_type):
         """
-        G: graph
-        B: budget
         type: unit code or variable cost
 
         Return: optimal set, time spending

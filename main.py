@@ -43,8 +43,6 @@ else:
         timestamp_file_name='higgs-activity_time.txt',
         activity='RT')
 
-network.simulate_cost()
-
 # run algorithm
 algo = OutbreakDetection(network, args.budget, args.objective_function, testing=args.test)
 

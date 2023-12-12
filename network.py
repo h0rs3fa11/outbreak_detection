@@ -2,6 +2,7 @@ import pandas as pd
 import networkx as nx
 import random
 import os
+import json
 
 class Network:
     def __init__(self, dataset_dir, original_file_name, result_file_name, follower_file_name, timestamp_file_name, activity):
@@ -19,10 +20,19 @@ class Network:
 
         self.timestamp_path = self.dataset_dir + '/' + timestamp_file_name
 
-        if os.path.exists(self.graph):
+        if not os.path.exists(self.graph):
             self.pre_processing(activity)
         
         self.G = self.load_network()
+
+        cost_path = 'dataset/cost.json'
+
+        if not os.path.exists(cost_path):
+            self.simulate_cost(cost_path)
+        else:
+            with open(cost_path, 'r') as f:
+                data = json.loads(f.read())
+            self.node_cost = {int(key): value for key, value in data.items()}
 
     @staticmethod
     def read_network(file_path, names=["Source", "Target", "Weight"]):
@@ -68,7 +78,9 @@ class Network:
 
         return G
 
-    def simulate_cost(self):
+    def simulate_cost(self, filename):
         nodes = set(self.G.nodes())
         for n in nodes:
             self.node_cost[n] = random.randint(1, 1000)
+        with open(filename, 'w') as f:
+            json.dump(self.node_cost, f)
