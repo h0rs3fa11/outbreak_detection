@@ -63,6 +63,8 @@ class OutbreakDetection:
         self.detection_likelihood_nodes = {}
         # store the detection time of each node then we don't have to calculate it in every iteration
         self.detection_time_nodes = {}
+        # store the population affected of each node then we don't have to calculate it in every iteration
+        self.population_affected = {}
 
         # objective function
         if(of not in OBJECTIVE_FUNCTION):
@@ -335,23 +337,27 @@ class OutbreakDetection:
 
         for node in placement:
             affected = set()
-            if node not in self.cascades:
-                # not detect
-                affected = set(self.cascades.keys())
+            if node in self.population_affected:
+                affected = self.population_affected[node]
             else:
-                component_id = self.weakly_nodes[node]
-                    
-                detect_time_at = find_minimum_activity_time(self.cascades[node])
+                if node not in self.cascades:
+                    # not detect
+                    affected = set(self.cascades.keys())
+                else:
+                    component_id = self.weakly_nodes[node]
+                        
+                    detect_time_at = find_minimum_activity_time(self.cascades[node])
 
-                for n, cascade in self.cascades.items():
-                    # whether the cascade nodes and sensor are in the same component
-                    if component_id != self.weakly_nodes[n]:
-                        affected.add(n)
-                        continue
-                    # check whether node n is affected before detect_time_at
-                    for pre, t in cascade.items():
-                        if t < detect_time_at and pre != node:
+                    for n, cascade in self.cascades.items():
+                        # whether the cascade nodes and sensor are in the same component
+                        if component_id != self.weakly_nodes[n]:
                             affected.add(n)
+                            continue
+                        # check whether node n is affected before detect_time_at
+                        for pre, t in cascade.items():
+                            if t < detect_time_at and pre != node:
+                                affected.add(n)
+                    self.population_affected[node] = affected
             affected_of_placement.append(affected)
 
         # get the intersection of affected group of each selected node
