@@ -70,7 +70,7 @@ class OutbreakDetection:
         self.of = of
 
         if self.of == 'PA':
-            self.cascades = self.__information_cascade()
+            self.cascades, self.followers_affected = self.__information_cascade()
     def __time_span(self):
         largest_timestamp = float('-inf') 
         smallest_timestamp = float('inf') 
@@ -103,7 +103,7 @@ class OutbreakDetection:
         # tmp_A = []
         total_cost = 0
         tmpG = self.G.copy()
-        timelapse, start_time = [], time.time()
+        start_time = time.time()
         round_count = 1
 
         self.__remove_startpoint_from_p(tmpG)
@@ -124,6 +124,7 @@ class OutbreakDetection:
                     max_reward = r
 
             if max_reward_node:
+                logging.debug(f'Found {max_reward_node} with {max_reward} marginal benefit')
                 A.append(max_reward_node)
 
             else: 
@@ -135,12 +136,11 @@ class OutbreakDetection:
             total_cost += self.network.node_cost[max_reward_node]
 
             if max_reward_node: tmpG.remove_node(max_reward_node)
-            timelapse.append(time.time() - start_time)
 
         if total_cost >= self.budget:
             logging.debug('Budget is exhausted')
         logging.info(f'The final placement has rewards {self.reward(A)}')
-        return (A, timelapse[-1])
+        return (A, time.time() - start_time)
 
     def marginal_gain(self, current_place, node, cost_type):
         if current_place:
@@ -216,9 +216,7 @@ class OutbreakDetection:
                     detected_info[n] = cid
                     # break
                 
-        if not detected_outbreak_dl:
-            logging.debug(f'\n{placement} cannot detect outbreak')
-        else:
+        if detected_outbreak_dl:
             logging.debug(f'\n{placement} can detect outbreak in components {detected_outbreak_dl}')
 
         return detected_outbreak_dl, detected_info
@@ -263,12 +261,19 @@ class OutbreakDetection:
             start_edge = self.starting_points[detected_info[node]]
 
             # How long it will take for the node to detect the information starts from start_edge
-            shorted_path = nx.shortest_path(self.G, start_edge['target'], node)
-
+            if nx.has_path(self.G, start_edge['target'], node) and nx.has_path(self.G, start_edge['source'], node):
+                shorted_path_a = nx.shortest_path(self.G, start_edge['target'], node)
+                shorted_path_b = nx.shortest_path(self.G, start_edge['source'], node)
+                time = min(self.G[shorted_path_a[-2]][shorted_path_a[-1]]['Timestamp'], self.G[shorted_path_b[-2]][shorted_path_b[-1]]['Timestamp']) - start_edge['Timestamp']
+            elif nx.has_path(self.G, start_edge['target'], node):
+                shorted_path = nx.shortest_path(self.G, start_edge['target'], node)
+                time = self.G[shorted_path[-2]][shorted_path[-1]]['Timestamp'] - start_edge['time']
+            else:
+                shorted_path = nx.shortest_path(self.G, start_edge['source'], node)
+                time = self.G[shorted_path[-2]][shorted_path[-1]]['Timestamp'] - start_edge['time']
             # directly connected with the starting point
             # if len(shorted_path) < 2:
             #     shortest_time = 0
-            time = self.G[shorted_path[-2]][shorted_path[-1]]['Timestamp'] - start_edge['time']
             if time < shortest_time:
                 shortest_time = time
             self.detection_time_nodes[node] = shortest_time
@@ -288,6 +293,9 @@ class OutbreakDetection:
                "predecessor_nodeid": "activity time"
           }
         }
+        Return 2 values:
+        dict, int
+        {}, and the follower count for each node
         """
 
         cascades = {}
@@ -295,21 +303,33 @@ class OutbreakDetection:
         for component_id, node_list in self.weakly_component.items():
             start = self.starting_points[component_id]
             for node in node_list:
-                if not nx.has_path(self.G, start['target'], node):
+                if not (nx.has_path(self.G, start['target'], node) or nx.has_path(self.G, start['source'], node)):
                     continue
-                paths = nx.all_simple_paths(self.G, start['target'], node)
+                if nx.has_path(self.G, start['target'], node) and nx.has_path(self.G, start['source'], node):
+                    paths = list(nx.all_simple_paths(self.G, start['target'], node))
+                    paths.extend(list(nx.all_simple_paths(self.G, start['source'], node)))
+                elif not nx.has_path(self.G, start['target'], node):
+                    paths = nx.all_simple_paths(self.G, start['source'], node)
+                else:
+                    paths = nx.all_simple_paths(self.G, start['target'], node)
+
                 preinfo = {}
                 for p in paths:
-                    preinfo[p[-2]] = self.G[p[-2]][p[-1]]['Timestamp']
+                    if p[-2] not in preinfo:
+                        preinfo[p[-2]] = self.G[p[-2]][p[-1]]['Timestamp']
                 cascades[node] = preinfo
         
-        return cascades
+        sum_of_followers = 0
+        for n in cascades:
+            if n in self.followers:
+                sum_of_followers += self.followers[n]
+
+        return cascades, sum_of_followers
     
     def __population_affected(self, placement):
         """
         Return: fraction of all nodes in that component
         """
-        # TODO: consider followers
         affected_of_placement = []
         all_affected = len(self.cascades.keys())
 
@@ -324,6 +344,10 @@ class OutbreakDetection:
                 detect_time_at = find_minimum_activity_time(self.cascades[node])
 
                 for n, cascade in self.cascades.items():
+                    # whether the cascade nodes and sensor are in the same component
+                    if component_id != self.weakly_nodes[n]:
+                        affected.add(n)
+                        continue
                     # check whether node n is affected before detect_time_at
                     for pre, t in cascade.items():
                         if t < detect_time_at and pre != node:
@@ -332,7 +356,14 @@ class OutbreakDetection:
 
         # get the intersection of affected group of each selected node
         affected_node = intersect_all_sets(affected_of_placement)
-        return 1 - len(affected_node) / all_affected
+
+        # count the followers
+        follower_aff = 0
+        for n in affected_node:
+            if n in self.followers:
+                follower_aff += self.followers[n]
+
+        return 1 - (len(affected_node) + follower_aff) / (all_affected + self.followers_affected)
 
     def greedy_lazy_forward(self, cost_type):
         """
@@ -356,6 +387,7 @@ class OutbreakDetection:
         for node in tqdm(tmpG.nodes()):
             R.put((self.marginal_gain(A, node, cost_type) * -1, node))
         
+        A.append(R.get()[1])
         pbar = tqdm(total=self.budget)
 
         logging.info('\Start iterating...')
@@ -363,12 +395,13 @@ class OutbreakDetection:
         costs = sum(self.network.node_cost[node] for node in A)
         while costs < self.budget:
             gain, top_node = R.get()
-
+            if gain == 0:
+                logging.debug('No node can benefit, exit')
+                break
             # Re-evaluate the top node
             current_gain = self.marginal_gain(A, top_node, cost_type)
             logging.debug(f'Current gain for top node is {current_gain}')
-            if current_gain == 0:
-                break
+
             if current_gain == gain * -1:
                 # If the top node's gain hasn't changed, add it to A
                 A.append(top_node)
@@ -378,6 +411,10 @@ class OutbreakDetection:
                 R.put((current_gain * -1, top_node))
 
             timelapse.append(time.time() - start_time)
+            costs = sum(self.network.node_cost[node] for node in A)
+
+        if costs >= self.budget:
+            logging.debug('Budget is exhausted')
         total_time = time.time() - start_time
 
         return (A, total_time)
