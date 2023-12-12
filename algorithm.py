@@ -318,9 +318,9 @@ class OutbreakDetection:
 
         cascades = {}
 
-        for component_id, node_list in self.weakly_component.items():
+        for component_id, node_list in tqdm(self.weakly_component.items()):
             start = self.starting_points[component_id]
-            for node in node_list:
+            for node in tqdm(node_list):
                 if not (nx.has_path(self.G, start['target'], node) or nx.has_path(self.G, start['source'], node)):
                     continue
                 if nx.has_path(self.G, start['target'], node) and nx.has_path(self.G, start['source'], node):

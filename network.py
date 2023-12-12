@@ -13,13 +13,13 @@ class Network:
         
         self.dataset_dir = dataset_dir
         self.node_cost = {}
-        self.graph = self.dataset_dir + '/' + result_file_name
+        self.graph =  f'{self.dataset_dir}/{result_file_name}'
         # retweet or mention
-        self.file_path = self.dataset_dir + '/' + original_file_name
+        self.file_path = f'{self.dataset_dir}/{original_file_name}'
 
-        self.file_path_follower = self.dataset_dir + '/' + follower_file_name
+        self.file_path_follower = f'{self.dataset_dir}/{follower_file_name}'
 
-        self.timestamp_path = self.dataset_dir + '/' + timestamp_file_name
+        self.timestamp_path = f'{self.dataset_dir}/{timestamp_file_name}'
 
         if not os.path.exists(self.graph):
             logging.info('Loading the original datasets...')
@@ -27,8 +27,8 @@ class Network:
         
         self.G = self.load_network()
 
-        self.cost_path = self.dataset_dir + '/cost.json'
-        self.follower_path = self.dataset_dir + '/followers.json'
+        self.cost_path = f'{self.dataset_dir}/cost-{activity}.json'
+        self.follower_path = f'{self.dataset_dir}/followers-{activity}.json'
 
         if not os.path.exists(self.follower_path):
             logging.info('Loading follower information...')
