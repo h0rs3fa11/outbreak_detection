@@ -111,6 +111,7 @@ class OutbreakDetection:
         total_cost = 0
         tmpG = self.G.copy()
         start_time = time.time()
+        time_logs = {}
         round_count = 1
 
         self.__remove_startpoint_from_p(tmpG)
@@ -133,6 +134,8 @@ class OutbreakDetection:
             if max_reward_node:
                 logging.debug(f'Found {max_reward_node} with {max_reward} marginal benefit')
                 A.append(max_reward_node)
+                time_logs[len(A)] = time.time() - start_time
+                logging.info(f'Selected {len(A)} nodes, with reward {self.reward(A)}, spent {time_logs[len(A)]}')
 
             else: 
                 logging.info('No node can benefit, exit')
@@ -148,7 +151,7 @@ class OutbreakDetection:
             logging.debug('Budget is exhausted')
         final_reward = self.reward(A)
         logging.info(f'The final placement has rewards {final_reward}')
-        return output(f'greedy-{cost_type}', A, final_reward, time.time() - start_time)
+        return output(f'greedy-{cost_type}', A, final_reward, time_logs)
 
     def marginal_gain(self, current_place, node, cost_type):
         if current_place:
@@ -224,8 +227,8 @@ class OutbreakDetection:
                     detected_info[n] = cid
                     # break
                 
-        if detected_outbreak_dl:
-            logging.debug(f'\n{placement} can detect outbreak in components {detected_outbreak_dl}')
+        # if detected_outbreak_dl:
+        #     logging.debug(f'\n{placement} can detect outbreak in components {detected_outbreak_dl}')
 
         return detected_outbreak_dl, detected_info
     
@@ -378,7 +381,7 @@ class OutbreakDetection:
         """
         # Initalization
         A = []
-        timelapse, start_time = [], time.time()
+        timelapse, start_time = {}, time.time()
         tmpG = self.G.copy()
         self.__remove_startpoint_from_p(tmpG)
 
@@ -405,24 +408,24 @@ class OutbreakDetection:
                 break
             # Re-evaluate the top node
             current_gain = self.marginal_gain(A, top_node, cost_type)
-            logging.debug(f'Current gain for top node is {current_gain}')
+            # logging.debug(f'Current gain for top node is {current_gain}')
 
             if current_gain == gain * -1:
                 # If the top node's gain hasn't changed, add it to A
                 A.append(top_node)
+                timelapse[len(A)] = time.time() - start_time
+                logging.info(f'Selected {len(A)} nodes, with reward {self.reward(A)}, spent {timelapse[len(A)]}')
                 pbar.update(costs - pbar.n)
             else:
                 # Otherwise, reinsert it with the updated gain
                 R.put((current_gain * -1, top_node))
 
-            timelapse.append(time.time() - start_time)
             costs = sum(self.network.node_cost[node] for node in A)
 
         if costs >= self.budget:
             logging.debug('Budget is exhausted')
-        total_time = time.time() - start_time
 
-        return (A, total_time)
+        return (A, timelapse)
     
     def celf(self):
         """Returns
