@@ -262,7 +262,7 @@ class OutbreakDetection:
         Return: 0 to 1
         """
         # detected_outbreak_dl is a list of component id which the current placement can detect
-        _, detected_info = self.__can_detect(placement)
+        detected_components, detected_info = self.__can_detect(placement)
         if not detected_info: 
             return 0
 
@@ -297,11 +297,12 @@ class OutbreakDetection:
             self.detection_time_nodes[node] = shortest_time
         if(shortest_time) < 0:
             raise ValueError(f'{shortest_time} cannot be negative')
-        r = self.__penalty_reduction_DT(shortest_time)
+        r = self.__penalty_reduction_DT(shortest_time) * (len(detected_components) / len(self.weakly_component))
 
         return r
 
     def __information_cascade(self):
+        #TODO: improve
         """
         Record the information cascade details
         {
@@ -317,6 +318,26 @@ class OutbreakDetection:
         """
 
         cascades = {}
+        # S = []
+        # for i in range(mc):
+        #     # Simulate propagation process
+        #     new_active, A = S[:], S[:]
+        #     while new_active:
+
+        #         # For each newly active node, find its neighbors that become activated
+        #         new_ones = []
+        #         for node in new_active:
+        #             # Determine neighbors that become infected
+        #             np.random.seed(i)
+        #             success = np.random.uniform(0, 1, len(g.neighbors(node, mode="out"))) < p
+        #             new_ones += list(np.extract(success, g.neighbors(node, mode="out")))
+
+        #         new_active = list(set(new_ones) - set(A))
+
+        #         # Add newly activated nodes to the set of activated nodes
+        #         A += new_active
+
+        #     spread.append(len(A))
 
         for component_id, node_list in tqdm(self.weakly_component.items()):
             start = self.starting_points[component_id]
