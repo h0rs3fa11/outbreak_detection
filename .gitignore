@@ -6,5 +6,6 @@ dataset/
 .DS_Store
 __pycache__
 venv/
-experiment.sh
+*.sh
 result.json
+logs/

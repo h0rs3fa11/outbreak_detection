@@ -282,7 +282,7 @@ class OutbreakDetection:
             if nx.has_path(self.G, start_edge['target'], node) and nx.has_path(self.G, start_edge['source'], node):
                 shorted_path_a = nx.shortest_path(self.G, start_edge['target'], node)
                 shorted_path_b = nx.shortest_path(self.G, start_edge['source'], node)
-                time = min(self.G[shorted_path_a[-2]][shorted_path_a[-1]]['Timestamp'], self.G[shorted_path_b[-2]][shorted_path_b[-1]]['Timestamp']) - start_edge['Timestamp']
+                time = min(self.G[shorted_path_a[-2]][shorted_path_a[-1]]['Timestamp'], self.G[shorted_path_b[-2]][shorted_path_b[-1]]['Timestamp']) - start_edge['time']
             elif nx.has_path(self.G, start_edge['target'], node):
                 shorted_path = nx.shortest_path(self.G, start_edge['target'], node)
                 time = self.G[shorted_path[-2]][shorted_path[-1]]['Timestamp'] - start_edge['time']
@@ -454,7 +454,9 @@ class OutbreakDetection:
         reward_CB = self.reward(result_CB)
         # time_UC.extend(time_CB)
         # time_log = sorted(time_UC)
-        time_log = time_UC + time_CB
+        time_log = {}
+        for key in set(time_CB.keys()).union(time_UC.keys()):
+            time_log[key] = time_CB.get(key, 0) + time_UC.get(key, 0)
 
         logging.info(f'CELF: the reward result of UC is {reward_UC}, and CB is {reward_CB}')
         logging.debug(f'CELF: the placement of UC is {result_UC}, and CB is {result_CB}')
