@@ -476,8 +476,10 @@ class OutbreakDetection:
         # time_UC.extend(time_CB)
         # time_log = sorted(time_UC)
         time_log = {}
-        for key in set(time_CB.keys()).union(time_UC.keys()):
-            time_log[key] = time_CB.get(key, 0) + time_UC.get(key, 0)
+        if reward_UC > reward_CB:
+            time_log = time_UC
+        else:
+            time_log = time_CB
 
         logging.info(f'CELF: the reward result of UC is {reward_UC}, and CB is {reward_CB}')
         logging.debug(f'CELF: the placement of UC is {result_UC}, and CB is {result_CB}')
