@@ -10,7 +10,7 @@ class Network:
         self.activities = ['MT', 'RT']
         if(activity not in self.activities):
             raise Exception('Invalid activity type')
-        
+        self.activity = activity
         self.dataset_dir = dataset_dir
         self.node_cost = {}
         self.graph =  f'{self.dataset_dir}/{result_file_name}'

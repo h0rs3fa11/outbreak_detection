@@ -9,7 +9,7 @@ import json
 import os
 import csv
 import pandas as pd
-from utils.utils import intersect_all_sets, find_minimum_activity_time, output
+from utils.utils import intersect_all_sets, output
 
 COST_TYPE = ['UC', 'CB']
 OBJECTIVE_FUNCTION = ['DT', 'DL', 'PA']
@@ -32,7 +32,7 @@ class OutbreakDetection:
             else:
                 c = 0
                 while c <= 5:
-                    num_nodes_to_sample = int(0.1 * self.G.number_of_nodes())
+                    num_nodes_to_sample = int(0.5 * self.G.number_of_nodes())
                     sampled_nodes = random.sample(list(self.G.nodes()), num_nodes_to_sample)
                     subgraph = self.G.subgraph(sampled_nodes).copy()
 
@@ -71,14 +71,10 @@ class OutbreakDetection:
             raise ValueError('Objective function is not right')
         self.of = of
 
-        ic_file = self.network.dataset_dir + '/information_cascades.json'
         if self.of == 'PA':
-            if os.path.exists(ic_file):
-                with open(ic_file) as f:
-                    self.cascades = json.load(f)
-            else:
-                logging.info('Extracting information cascades...')
-                self.cascades = self.__information_cascade()
+            logging.info('Extracting information cascades...')
+            self.cascades = self.__information_cascade()
+
             self.followers_affected = 0
             for n in self.cascades:
                 if n in self.followers:
@@ -318,45 +314,32 @@ class OutbreakDetection:
         """
 
         cascades = {}
-        # S = []
-        # for i in range(mc):
-        #     # Simulate propagation process
-        #     new_active, A = S[:], S[:]
-        #     while new_active:
-
-        #         # For each newly active node, find its neighbors that become activated
-        #         new_ones = []
-        #         for node in new_active:
-        #             # Determine neighbors that become infected
-        #             np.random.seed(i)
-        #             success = np.random.uniform(0, 1, len(g.neighbors(node, mode="out"))) < p
-        #             new_ones += list(np.extract(success, g.neighbors(node, mode="out")))
-
-        #         new_active = list(set(new_ones) - set(A))
-
-        #         # Add newly activated nodes to the set of activated nodes
-        #         A += new_active
-
-        #     spread.append(len(A))
 
         for component_id, node_list in tqdm(self.weakly_component.items()):
             start = self.starting_points[component_id]
             for node in tqdm(node_list):
+                if node == start['source'] or node == start['target']:
+                    continue
                 if not (nx.has_path(self.G, start['target'], node) or nx.has_path(self.G, start['source'], node)):
                     continue
                 if nx.has_path(self.G, start['target'], node) and nx.has_path(self.G, start['source'], node):
-                    paths = list(nx.all_simple_paths(self.G, start['target'], node))
-                    paths.extend(list(nx.all_simple_paths(self.G, start['source'], node)))
+                    start_point = (start['source'], start['target'])
+    
                 elif not nx.has_path(self.G, start['target'], node):
-                    paths = nx.all_simple_paths(self.G, start['source'], node)
+                    start_point = [start['source']]
                 else:
-                    paths = nx.all_simple_paths(self.G, start['target'], node)
+                    start_point = [start['target']]
 
-                preinfo = {}
-                for p in paths:
-                    if p[-2] not in preinfo:
-                        preinfo[p[-2]] = self.G[p[-2]][p[-1]]['Timestamp']
-                cascades[node] = preinfo
+                min_time = float('inf')
+                for s in start_point:
+                        shortest_path = nx.dijkstra_path(self.G, s, node, 'Timestamp')
+                        if len(shortest_path) == 1:
+                            timestamp = self.G[s][shortest_path[0]]['Timestamp']
+                        else:
+                            timestamp = self.G[shortest_path[-2]][shortest_path[-1]]['Timestamp']
+                        min_time = min(min_time, timestamp)
+                    
+                cascades[node] = min_time
 
         return cascades
     
@@ -375,17 +358,16 @@ class OutbreakDetection:
             else:
                 component_id = self.weakly_nodes[node]
                     
-                detect_time_at = find_minimum_activity_time(self.cascades[node])
+                detect_time_at = self.cascades[node]
 
-                for n, cascade in self.cascades.items():
+                for n in self.cascades:
                     # whether the cascade nodes and sensor are in the same component
                     if component_id != self.weakly_nodes[n]:
                         affected.add(n)
                         continue
                     # check whether node n is affected before detect_time_at
-                    for pre, t in cascade.items():
-                        if t < detect_time_at and pre != node:
-                            affected.add(n)
+                    if self.cascades[n] < detect_time_at:
+                        affected.add(n)
             affected_of_placement.append(affected)
 
         # get the intersection of affected group of each selected node

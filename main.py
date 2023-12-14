@@ -61,18 +61,18 @@ elif args.command == 'heuristic':
 
 logging.info(result)
 
-result_path = 'result.json'
+result_path = f'results/{args.graph}-result-{args.objective_function}.json'
 results = []
 
 # record the result
 if os.path.exists(result_path):
     with open(result_path, 'r') as f:
-        results = json.loads(f.read())
-
+        try:
+            results = json.loads(f.read())
+        except json.JSONDecodeError:
+            results = []
 results.append(result)
 with open(result_path, 'w') as f:
     json.dump(results, f)
-
-# solution quality
 
 # creata result graphs
