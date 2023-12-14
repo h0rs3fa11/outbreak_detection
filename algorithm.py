@@ -298,7 +298,6 @@ class OutbreakDetection:
         return r
 
     def __information_cascade(self):
-        #TODO: improve
         """
         Record the information cascade details
         {

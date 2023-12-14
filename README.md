@@ -1,66 +1,52 @@
 # Outbreak Detection
 
-Outbreak detection by using CELF Algorithm
+Detecting outbreak and optimizing objective functions by using different Algorithms:
+
+- Naive Greedy algorithm
+- CELF
+- Heuristic approaches(based on inlinks, outlinks, followers, ...)
 
 ## Datasets
 
 Put [higgs dataset files](https://snap.stanford.edu/data/higgs-twitter.html) in `dataset/`
 
-## Usage
-
-Initialize the network
-
-```python
-from network import Network
-
-# network of mentions
-mt_n = Network(
-    dataset_dir='dataset', 
-    original_file_name='higgs-mention_network.edgelist', 
-    result_file_name='mention_higgs_network.csv', 
-    follower_file_name='higgs-social_network.edgelist', 
-    timestamp_file_name='higgs-activity_time.txt',
-    activity='MT')
-
-# network of retweets
-rt_n = Network(
-    dataset_dir='dataset',
-    original_file_name='higgs-retweet_network.edgelist',
-    result_file_name='retweet_higgs_network.csv',
-    follower_file_name='higgs-social_network.edgelist',
-    timestamp_file_name='higgs-activity_time.txt',
-    activity='RT')
-
-
-# Record all nodes and its simulated cost
-mt_n.simulate_cost()
-
-# mt_n.node_cost['NODE_NAME']
+```
+higgs-mention_network.edgelist
+higgs-reply_network.edgelist
+higgs-retweet_network.edgelist
+higgs-social_network.edgelist
 ```
 
-## TODOs
+## Usage
 
-- [x] Count the number of followers for nodes in the retweet and mention graph.
+```
+python3 main.py --help
+usage: main.py [-h] [-test {1,0}] -g {mt,rt} -b BUDGET -obj {DL,DT,PA} {algorithm,heuristic} ...
 
-- [x] Simulate the cost of monitoring each node, create a new graph to indicate the cost
+Find the best placement for outbreak detection
 
-- [x] Extract information cascade
+positional arguments:
+  {algorithm,heuristic}
+                        sub command help
+    algorithm           algorithm: choose algorithms and objective functions
+    heuristic           heuristic: use heuristic methods to find placement
 
-- [x] Define a function to calculate penalty reduction
+options:
+  -h, --help            show this help message and exit
+  -test {1,0}, --test {1,0}
+                        Whether to use a smaller dataset for testing
+  -g {mt,rt}, --graph {mt,rt}
+                        indicate which graph to use, mt(mention) or rt(retweet)
+  -b BUDGET, --budget BUDGET
+                        total budget
+  -obj {DL,DT,PA}, --objective_function {DL,DT,PA}
+                        objective functions
+```
 
-  - [x] detection time
-  - [x] detection likelihood
-  - [x] population affected
+## References
 
-- [x] Greedy/CELF algorithm
+<a id=1>[1]</a>
+M. De Domenico, A. Lima, P. Mougel and M. Musolesi. The Anatomy of a Scientific Rumor. (Nature Open Access) Scientific Reports 3, 2980 (2013).
 
-- [x] heuristic approaches
-
-- [ ] Solution quality
-
-- [ ] Testing
-
-- [ ] Result graph
-  - [ ] Information saving
-
-- [ ] configparser(optional)
+<a id=2>[2]</a>
+M. De Domenico, A. Lima, P. Mougel and M. Musolesi. The Anatomy of a Scientific Rumor. (Nature Open Access) Scientific Reports 3, 2980 (2013).
