@@ -46,7 +46,10 @@ options:
 ## References
 
 <a id=1>[1]</a>
-M. De Domenico, A. Lima, P. Mougel and M. Musolesi. The Anatomy of a Scientific Rumor. (Nature Open Access) Scientific Reports 3, 2980 (2013).
+M. De Domenico, A. Lima, P. Mougel, and M. Musolesi. 2013. The Anatomy of a
+Scientific Rumor. Scientific Reports 3 (2013), 2980.
 
 <a id=2>[2]</a>
-M. De Domenico, A. Lima, P. Mougel and M. Musolesi. The Anatomy of a Scientific Rumor. (Nature Open Access) Scientific Reports 3, 2980 (2013).
+J. Leskovec, A. Krause, C. Guestrin, C. Faloutsos, J. VanBriesen, and N. S. Glance.
+2007. Cost-effective outbreak detection in networks. In Proceedings of the 13th
+ACM SIGKDD Conference on Knowledge Discovery and Data Mining. 420–429.

@@ -71,10 +71,17 @@ class OutbreakDetection:
             raise ValueError('Objective function is not right')
         self.of = of
 
+        ic_path = f'{self.network.dataset_dir}/ic_{self.network.activity}'
         if self.of == 'PA':
-            logging.info('Extracting information cascades...')
-            self.cascades = self.__information_cascade()
-
+            if not os.exists(ic_path):
+                logging.info('Extracting information cascades...')
+                self.cascades = self.__information_cascade()
+                with open(ic_path, 'w') as f:
+                    json.dump(self.cascades, f)
+            else:
+                with open(ic_path, 'r') as f:
+                    self.cascades = json.loads(f.read())
+                    
             self.followers_affected = 0
             for n in self.cascades:
                 if n in self.followers:
