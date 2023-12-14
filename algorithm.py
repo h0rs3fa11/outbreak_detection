@@ -7,6 +7,7 @@ from tqdm import tqdm
 import random
 import json
 import os
+import numpy as np
 import csv
 import pandas as pd
 from utils.utils import intersect_all_sets, output
@@ -15,7 +16,7 @@ COST_TYPE = ['UC', 'CB']
 OBJECTIVE_FUNCTION = ['DT', 'DL', 'PA']
 
 class OutbreakDetection:
-    def __init__(self, network, B, of, testing=True):
+    def __init__(self, network, B, of, testing=True, use_follower=False):
         logging.info('Initializing...')
         self.cost_types = ['UC', 'CB']
         if(not isinstance(network, Network)):
@@ -23,6 +24,7 @@ class OutbreakDetection:
         self.network = network
         self.G = self.network.G
         self.budget = B
+        self.use_follower = use_follower
         if testing:
             test_file = 'dataset/test_subgraph.csv'
             if os.path.exists(test_file):
@@ -42,10 +44,10 @@ class OutbreakDetection:
                 self.G = subgraph
                 with open(test_file, 'w', newline='') as file:
                     writer = csv.writer(file)
-                    writer.writerow(['Source', 'Target', 'Timestamp', 'Follower_count'])
+                    writer.writerow(['Source', 'Target', 'Timestamp'])
 
                     for u, v, data in self.G.edges(data=True):
-                        writer.writerow([u, v, data['Timestamp'], data['Follower_count']])
+                        writer.writerow([u, v, data['Timestamp']])
 
 
         # self.weakly_nodes: {node: component_id}
@@ -54,7 +56,8 @@ class OutbreakDetection:
 
         # starting_points: [{'source': 1111, 'target': 2222, 'time': 12345}]
         self.starting_points = self.__get_starting_point()
-        self.followers = self.__extract_followers()
+        if use_follower:
+            self.followers = self.__extract_followers()
 
         # Find time span
         self.t_max = self.__time_span()
@@ -73,7 +76,7 @@ class OutbreakDetection:
 
         ic_path = f'{self.network.dataset_dir}/ic_{self.network.activity}'
         if self.of == 'PA':
-            if not os.exists(ic_path):
+            if not os.path.exists(ic_path):
                 logging.info('Extracting information cascades...')
                 self.cascades = self.__information_cascade()
                 with open(ic_path, 'w') as f:
@@ -81,11 +84,12 @@ class OutbreakDetection:
             else:
                 with open(ic_path, 'r') as f:
                     self.cascades = json.loads(f.read())
-                    
+            self.cascades = {int(key): value for key, value in self.cascades.items()}
             self.followers_affected = 0
-            for n in self.cascades:
-                if n in self.followers:
-                    self.followers_affected += len(self.followers[n])
+            if self.use_follower:
+                for n in self.cascades:
+                    if n in self.followers:
+                        self.followers_affected += len(self.followers[n])
 
     def __time_span(self):
         largest_timestamp = float('-inf') 
@@ -258,7 +262,8 @@ class OutbreakDetection:
         if T == float('inf'):
             return 0
         else:
-            return 1 - T / self.t_max
+            normalized_times = 1 - T / self.t_max
+            return 1 / (1 + np.exp(-normalized_times))
 
     def __detection_time(self, placement):
         """
@@ -300,7 +305,7 @@ class OutbreakDetection:
             self.detection_time_nodes[node] = shortest_time
         if(shortest_time) < 0:
             raise ValueError(f'{shortest_time} cannot be negative')
-        r = self.__penalty_reduction_DT(shortest_time) * (len(detected_components) / len(self.weakly_component))
+        r = self.__penalty_reduction_DT(shortest_time)
 
         return r
 
@@ -363,31 +368,42 @@ class OutbreakDetection:
                 affected = set(self.cascades.keys())
             else:
                 component_id = self.weakly_nodes[node]
-                    
+                if node == self.starting_points[component_id]['source'] or node == self.starting_points[component_id]['target']:
+                    continue  
                 detect_time_at = self.cascades[node]
 
+                if node in self.population_affected:
+                    aff = self.population_affected[node]
+                    for a in aff:
+                        affected.add(a)
+
+                self.population_affected[node] = set()
                 for n in self.cascades:
                     # whether the cascade nodes and sensor are in the same component
                     if component_id != self.weakly_nodes[n]:
-                        affected.add(n)
+                        # only node itself is affected
                         continue
                     # check whether node n is affected before detect_time_at
                     if self.cascades[n] < detect_time_at:
                         affected.add(n)
+                        self.population_affected[node].add(n)
+
             affected_of_placement.append(affected)
 
         # get the intersection of affected group of each selected node
         affected_node = intersect_all_sets(affected_of_placement)
 
-        # count the followers
         if len(affected_node) == all_affected:
-            return 0
+            return 0 
+        
         follower_aff = set()
-        for n in affected_node:
-            if n in self.followers:
-                follower_aff = follower_aff.union(set(self.followers[n]))
+        if self.use_follower:
+            follower_aff = set().union(*(self.followers[n] for n in affected_node if n in self.followers))
 
-        return 1 - (len(affected_node) + len(follower_aff)) / (all_affected + self.followers_affected)
+        reward = 1 - (len(affected_node) + len(follower_aff)) / (all_affected + self.followers_affected)
+
+        # skip the node that can make reward of 1
+        return 0 if reward == 1 else reward
 
     def greedy_lazy_forward(self, cost_type):
         """
@@ -412,6 +428,9 @@ class OutbreakDetection:
             R.put((self.marginal_gain(A, node, cost_type) * -1, node))
         
         A.append(R.get()[1])
+        cur_reward = self.reward(A)
+        timelapse[len(A)] = {'runtime':time.time() - start_time, 'reward': cur_reward}
+        logging.info(f'Selected {len(A)} nodes, with reward {cur_reward}, spent {timelapse[len(A)]}')
         pbar = tqdm(total=self.budget)
 
         logging.info('\Start iterating...')
@@ -502,6 +521,7 @@ class OutbreakDetection:
         """
         total_cost = 0
         A = []
+        reward = {}
         tmpG = self.G.copy()
 
         while total_cost < self.budget:
@@ -512,14 +532,19 @@ class OutbreakDetection:
             elif func_name == 'outlinks':
                 new_node = self.__get_links_nodes(list(tmpG.nodes()), 'out')
             elif func_name == 'followers':
-                new_node = self.__get_followers_count_nodes(list(tmpG.nodes()))
+                if self.use_follower:
+                    new_node = self.__get_followers_count_nodes(list(tmpG.nodes()))
+                else:
+                    raise ValueError('Follower function haven\'t activated')
             else:
                 raise ValueError(f'{func_name} not be supported')
             A.append(new_node)
+            cur_reward = self.reward(A)
+            reward[len(A)] = cur_reward
             total_cost += self.network.node_cost[new_node]
             tmpG.remove_node(new_node)
         
-        return {'algo': func_name, 'placement': A, 'reward': self.reward(A)}
+        return {'algo': func_name, 'placement': A, 'reward': reward}
 
     def __get_random_nodes(self, nodes):
         return random.choice(nodes)
@@ -547,7 +572,7 @@ class OutbreakDetection:
 
     def __extract_followers(self):
         with open(self.network.follower_path, 'r') as f:
-            data = json.loads(f.read())
+            data = json.load(f)
         
         follower_map = {int(key): value for key, value in data.items()}
         

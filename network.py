@@ -6,7 +6,7 @@ import json
 import logging
 
 class Network:
-    def __init__(self, dataset_dir, original_file_name, result_file_name, follower_file_name, timestamp_file_name, activity):
+    def __init__(self, dataset_dir, original_file_name, result_file_name, follower_file_name, timestamp_file_name, activity, use_follower=False):
         self.activities = ['MT', 'RT']
         if(activity not in self.activities):
             raise Exception('Invalid activity type')
@@ -30,13 +30,14 @@ class Network:
         self.cost_path = f'{self.dataset_dir}/cost-{activity}.json'
         self.follower_path = f'{self.dataset_dir}/followers-{activity}.json'
 
-        if not os.path.exists(self.follower_path):
-            logging.info('Loading follower information...')
-            fl_edge_list = Network.read_network(self.file_path_follower, names=['Follower', 'User'])
+        if use_follower:
+            if not os.path.exists(self.follower_path):
+                logging.info('Loading follower information...')
+                fl_edge_list = Network.read_network(self.file_path_follower, names=['Follower', 'User'])
 
-            follower_dict = fl_edge_list.groupby('User')['Follower'].apply(list).to_dict()
-            with open(self.follower_path, 'w') as f:
-                json.dump(follower_dict, f)
+                follower_dict = fl_edge_list.groupby('User')['Follower'].apply(list).to_dict()
+                with open(self.follower_path, 'w') as f:
+                    json.dump(follower_dict, f)
 
 
         if not os.path.exists(self.cost_path):
@@ -65,7 +66,8 @@ class Network:
         merged_df.drop(['Activity', 'Weight'], axis=1, inplace=True)
 
         # reverse the direction to match the information spreading flow
-        merged_df['Source'], merged_df['Target'] = merged_df['Target'], merged_df['Source']
+        if activity == 'RT':
+            merged_df['Source'], merged_df['Target'] = merged_df['Target'], merged_df['Source']
 
 
         csv_file = self.graph
