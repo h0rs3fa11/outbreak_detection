@@ -6,7 +6,7 @@ import random
 import json
 import os
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 parser = argparse.ArgumentParser(description='Find the best placement for outbreak detection')
 parser.add_argument('-test', '--test', type=int, choices=[1, 0], default=1, help='Whether to use a smaller dataset for testing')

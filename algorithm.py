@@ -7,10 +7,9 @@ from tqdm import tqdm
 import random
 import json
 import os
-import numpy as np
 import csv
 import pandas as pd
-from utils.utils import intersect_all_sets, output
+from utils.utils import intersect_all_sets, output, normalize_numbers
 
 COST_TYPE = ['UC', 'CB']
 OBJECTIVE_FUNCTION = ['DT', 'DL', 'PA']
@@ -68,7 +67,7 @@ class OutbreakDetection:
         self.detection_time_nodes = {}
         # store the population affected of each node then we don't have to calculate it in every iteration
         self.population_affected = {}
-
+        self.reward_cache = {}
         # objective function
         if(of not in OBJECTIVE_FUNCTION):
             raise ValueError('Objective function is not right')
@@ -90,6 +89,12 @@ class OutbreakDetection:
                 for n in self.cascades:
                     if n in self.followers:
                         self.followers_affected += len(self.followers[n])
+            self.all_affected = {}
+            for cid in self.weakly_component:
+                self.all_affected[cid] = []
+
+            for n in self.cascades:
+                self.all_affected[self.weakly_nodes[n]].append(n)
 
     def __time_span(self):
         max_times = {}
@@ -216,7 +221,7 @@ class OutbreakDetection:
         detected_info = {}
         for n in placement:
             # n can detect an outbreak
-            if n in self.detection_likelihood_nodes and self.detection_likelihood_nodes[n] not in detected_outbreak_dl:
+            if n in self.detection_likelihood_nodes:
                 # record the component id which n can detect
                 detected_outbreak_dl.add(self.detection_likelihood_nodes[n])
                 detected_info[n] = self.detection_likelihood_nodes[n]
@@ -230,6 +235,7 @@ class OutbreakDetection:
                 # If n is in the same component with exist nodes(self.detection_likelihood_nodes), the reward won't increase
                 if cid in detected_outbreak_dl:
                     # detected outbreak / all outbreaks
+                    detected_info[n] = cid
                     return detected_outbreak_dl, detected_info
                 
                 # For the cascade of this component
@@ -263,17 +269,11 @@ class OutbreakDetection:
         return len(detected_outbreak_dl) / all_cascade
     
     def __penalty_reduction_DT(self, T):
-        # if T == float('inf'):
-        #     return 0
-        # else:
-        #     normalized_times = 1 - T / self.t_max
-        #     # return 1 / (1 + np.exp(-normalized_times))
-        #     return (1 - np.exp(-normalized_times))
         sum_frac = 0
         for cid, t in T.items():
             if t == float('inf'):
                 continue
-            sum_frac += t / self.t_max[cid]
+            sum_frac += (1 - t / self.t_max[cid])
         return sum_frac
     
     def __detection_time(self, placement):
@@ -313,6 +313,9 @@ class OutbreakDetection:
             shortest_time[component_id] = time if time < shortest_time[component_id] else shortest_time[component_id]
             self.detection_time_nodes[node] = shortest_time[component_id]
 
+            # cache
+            self.reward_cache[node] = self.__penalty_reduction_DT({component_id: self.detection_time_nodes[node]})
+
         if(shortest_time[component_id]) < 0:
             raise ValueError(f'{shortest_time} cannot be negative')
         
@@ -324,15 +327,8 @@ class OutbreakDetection:
         """
         Record the information cascade details
         {
-          "node_id": 
-          {
-              "predecessor_nodeid": "activity time",
-               "predecessor_nodeid": "activity time"
-          }
+          "node_id": "min_activity_time_from_the_start_point"
         }
-        Return 2 values:
-        dict, int
-        {}, and the follower count for each node
         """
 
         cascades = {}
@@ -369,52 +365,63 @@ class OutbreakDetection:
         """
         Return: fraction of all nodes in that component
         """
-        affected_of_placement = []
-        all_affected = len(self.cascades.keys())
+        # TODO:区别计算不同的component
+        affected_of_placement, affected_node, benefit = {}, {}, {}
+        for cid in self.weakly_component:
+            affected_of_placement[cid], affected_node[cid] = [], set()
 
         for node in placement:
             affected = set()
             if node not in self.cascades:
-                # not detect
-                affected = set(self.cascades.keys())
+                # cannot detect anything
+                for cid in self.weakly_component:
+                    affected_of_placement[cid].append(self.all_affected[cid])
+                    if node not in self.population_affected:
+                        self.population_affected[node] = self.all_affected[cid]
+                continue
+            component_id = self.weakly_nodes[node]
+            if node == self.starting_points[component_id]['source'] or node ==self.starting_points[component_id]['target']:
+                continue  
+            detect_time_at = self.cascades[node]
+
+            if node in self.population_affected:
+                aff = self.population_affected[node]
+                for a in aff:
+                    affected.add(a)
             else:
-                component_id = self.weakly_nodes[node]
-                if node == self.starting_points[component_id]['source'] or node == self.starting_points[component_id]['target']:
-                    continue  
-                detect_time_at = self.cascades[node]
-
-                if node in self.population_affected:
-                    aff = self.population_affected[node]
-                    for a in aff:
-                        affected.add(a)
-
                 self.population_affected[node] = set()
                 for n in self.cascades:
                     # whether the cascade nodes and sensor are in the same component
                     if component_id != self.weakly_nodes[n]:
-                        # only node itself is affected
-                        continue
+                        # nodes in other component will be affected
+                        affected.add(n)
+                        self.population_affected[node].add(n)
                     # check whether node n is affected before detect_time_at
-                    if self.cascades[n] < detect_time_at:
+                    elif self.cascades[n] < detect_time_at:
                         affected.add(n)
                         self.population_affected[node].add(n)
 
-            affected_of_placement.append(affected)
+            affected_of_placement[component_id].append(affected)
 
-        # get the intersection of affected group of each selected node
-        affected_node = intersect_all_sets(affected_of_placement)
+        for cid in self.weakly_component:
+            # get the intersection of affected group of each selected node
+            affected_node[cid] = intersect_all_sets(affected_of_placement[cid])
 
-        if len(affected_node) == all_affected:
-            return 0 
+            # if len(affected_node[cid]) == len(self.all_affected[cid]):
+            #     benefit[cid] = 0
         
-        follower_aff = set()
-        if self.use_follower:
-            follower_aff = set().union(*(self.followers[n] for n in affected_node if n in self.followers))
+        # follower_aff = set()
+        # if self.use_follower: # not finish
+        #     follower_aff = set().union(*(self.followers[n] for n in affected_node if n in self.followers))
 
-        reward = 1 - (len(affected_node) + len(follower_aff)) / (all_affected + self.followers_affected)
+        # benefit[component_id] = 1 - (len(affected_node[component_id]) + len(follower_aff)) / (self.all_affected[component_id] + self.followers_affected)
+            if len(self.all_affected[cid]) == 0:
+                benefit[cid] = 0
+            else:
+                benefit[cid] = 1 - len(affected_node[cid]) / len(self.all_affected[cid])
 
         # skip the node that can make reward of 1
-        return 0 if reward == 1 else reward
+        return sum([x for x in benefit.values()])
 
     def greedy_lazy_forward(self, cost_type):
         """
@@ -534,6 +541,7 @@ class OutbreakDetection:
         A = []
         reward = {}
         tmpG = self.G.copy()
+        pbar = tqdm(total=self.budget)
 
         while total_cost < self.budget:
             if func_name == 'random':
@@ -549,10 +557,17 @@ class OutbreakDetection:
                     raise ValueError('Follower function haven\'t activated')
             else:
                 raise ValueError(f'{func_name} not be supported')
+            if new_node in self.reward_cache:
+                node_reward = self.reward_cache[new_node]
+            else:
+                node_reward = self.reward([new_node])
+            if node_reward == 0:
+                continue
             A.append(new_node)
-            cur_reward = self.reward(A)
-            reward[len(A)] = cur_reward
+            reward[len(A)] = self.reward(A)
             total_cost += self.network.node_cost[new_node]
+            pbar.update(total_cost - pbar.n)
+
             tmpG.remove_node(new_node)
         
         return {'algo': func_name, 'placement': A, 'reward': reward}
