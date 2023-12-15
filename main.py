@@ -5,6 +5,7 @@ import argparse
 import random
 import json
 import os
+import time
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -62,7 +63,7 @@ elif args.command == 'heuristic':
 
 logging.info(result)
 
-result_path = f'results/{args.graph}-result-{args.objective_function}.json'
+result_path = f'results/{args.graph}-result-{args.command}-{args.objective_function}-{int(time.time())}.json'
 results = []
 
 # record the result
