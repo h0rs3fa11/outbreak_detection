@@ -33,7 +33,7 @@ class OutbreakDetection:
             else:
                 c = 0
                 while c <= 5:
-                    num_nodes_to_sample = int(0.3 * self.G.number_of_nodes())
+                    num_nodes_to_sample = int(0.5 * self.G.number_of_nodes())
                     sampled_nodes = random.sample(list(self.G.nodes()), num_nodes_to_sample)
                     subgraph = self.G.subgraph(sampled_nodes).copy()
 
@@ -68,6 +68,8 @@ class OutbreakDetection:
         # store the population affected of each node then we don't have to calculate it in every iteration
         self.population_affected = {}
         self.reward_cache = {}
+        self.inlinks_cache = {}
+        self.outlinks_cache = {}
         # objective function
         if(of not in OBJECTIVE_FUNCTION):
             raise ValueError('Objective function is not right')
@@ -232,11 +234,11 @@ class OutbreakDetection:
                 if n not in self.weakly_nodes:
                     continue
                 cid = self.weakly_nodes.get(n)
-                # If n is in the same component with exist nodes(self.detection_likelihood_nodes), the reward won't increase
+
                 if cid in detected_outbreak_dl:
                     # detected outbreak / all outbreaks
                     detected_info[n] = cid
-                    return detected_outbreak_dl, detected_info
+                    continue
                 
                 # For the cascade of this component
                 start = self.starting_points[cid]
@@ -310,8 +312,9 @@ class OutbreakDetection:
                 shorted_path = nx.shortest_path(self.G, start_edge['source'], node)
                 time = self.G[shorted_path[-2]][shorted_path[-1]]['Timestamp'] - start_edge['time']
 
+            self.detection_time_nodes[node] = time
+
             shortest_time[component_id] = time if time < shortest_time[component_id] else shortest_time[component_id]
-            self.detection_time_nodes[node] = shortest_time[component_id]
 
             # cache
             self.reward_cache[node] = self.__penalty_reduction_DT({component_id: self.detection_time_nodes[node]})
@@ -332,32 +335,32 @@ class OutbreakDetection:
         """
 
         cascades = {}
+        seeds = set()
 
-        for component_id, node_list in tqdm(self.weakly_component.items()):
-            start = self.starting_points[component_id]
-            for node in tqdm(node_list):
-                if node == start['source'] or node == start['target']:
-                    continue
-                if not (nx.has_path(self.G, start['target'], node) or nx.has_path(self.G, start['source'], node)):
-                    continue
-                if nx.has_path(self.G, start['target'], node) and nx.has_path(self.G, start['source'], node):
-                    start_point = (start['source'], start['target'])
-    
-                elif not nx.has_path(self.G, start['target'], node):
-                    start_point = [start['source']]
-                else:
-                    start_point = [start['target']]
+        for s in self.starting_points:
+            seeds.add(s['start'])
+            seeds.add(s['target'])
 
-                min_time = float('inf')
-                for s in start_point:
-                        shortest_path = nx.dijkstra_path(self.G, s, node, 'Timestamp')
-                        if len(shortest_path) == 1:
-                            timestamp = self.G[s][shortest_path[0]]['Timestamp']
-                        else:
-                            timestamp = self.G[shortest_path[-2]][shortest_path[-1]]['Timestamp']
-                        min_time = min(min_time, timestamp)
-                    
-                cascades[node] = min_time
+        for i in range(mc):
+        
+            # Simulate propagation process      
+            new_active, A = seeds[:], seeds[:]
+            while new_active:
+
+                # For each newly active node, find its neighbors that become activated
+                new_ones = []
+                for node in new_active:
+                    # Determine neighbors that become infected
+                    success = self.G.successors(node)
+
+                    new_ones += success
+
+                new_active = list(set(new_ones) - set(A))
+                
+                # Add newly activated nodes to the set of activated nodes
+                A += new_active
+            
+        
 
         return cascades
     
@@ -543,6 +546,16 @@ class OutbreakDetection:
         tmpG = self.G.copy()
         pbar = tqdm(total=self.budget)
 
+        # # TEST code for heuristic
+        # with open('results/mt-result-heuristic-DT-1702649473.json') as f:
+        #     data = json.loads(f.read())
+        # pls = data[0]['placement']
+        # cur = []
+        # for p in pls:
+        #     print(self.reward(cur + [p]))
+        #     cur.append(p)
+        # # TEST code end for heuristic
+            
         while total_cost < self.budget:
             if func_name == 'random':
                 new_node = self.__get_random_nodes(list(tmpG.nodes()))
@@ -562,6 +575,7 @@ class OutbreakDetection:
             else:
                 node_reward = self.reward([new_node])
             if node_reward == 0:
+                tmpG.remove_node(new_node)
                 continue
             A.append(new_node)
             reward[len(A)] = self.reward(A)
@@ -579,9 +593,17 @@ class OutbreakDetection:
         max_degree = [0, -1]
         for n in nodes:
             if d == 'in':
-                degree = self.G.in_degree(n)
+                if n in self.inlinks_cache:
+                    degree = self.inlinks_cache[n]
+                else:
+                    degree = self.G.in_degree(n)
+                    self.inlinks_cache[n] = degree
             elif d == 'out':
-                degree = self.G.out_degree(n)
+                if n in self.outlinks_cache:
+                    degree = self.outlinks_cache[n]
+                else:
+                    degree = self.G.out_degree(n)
+                    self.outlinks_cache[n] = degree
             else:
                 raise ValueError(f'degree type {d} is invalid')
             if degree > max_degree[1]:
