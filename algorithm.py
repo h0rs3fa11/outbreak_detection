@@ -34,7 +34,7 @@ class OutbreakDetection:
             else:
                 c = 0
                 while c <= 5:
-                    num_nodes_to_sample = int(0.5 * self.G.number_of_nodes())
+                    num_nodes_to_sample = int(0.3 * self.G.number_of_nodes())
                     sampled_nodes = random.sample(list(self.G.nodes()), num_nodes_to_sample)
                     subgraph = self.G.subgraph(sampled_nodes).copy()
 
@@ -74,7 +74,7 @@ class OutbreakDetection:
             raise ValueError('Objective function is not right')
         self.of = of
 
-        ic_path = f'{self.network.dataset_dir}/ic_{self.network.activity}'
+        ic_path = f'{self.network.dataset_dir}/ic_{self.network.activity}.json'
         if self.of == 'PA':
             if not os.path.exists(ic_path):
                 logging.info('Extracting information cascades...')
@@ -92,20 +92,24 @@ class OutbreakDetection:
                         self.followers_affected += len(self.followers[n])
 
     def __time_span(self):
-        largest_timestamp = float('-inf') 
-        smallest_timestamp = float('inf') 
+        max_times = {}
+        for cid, nodes in self.weakly_component.items():
+            largest_timestamp = float('-inf') 
+            smallest_timestamp = float('inf') 
 
-        for _, _, attrs in self.G.edges(data=True):
-            timestamp = attrs.get('Timestamp', None)
-            if timestamp is not None:
-                largest_timestamp = max(largest_timestamp, timestamp)
-                smallest_timestamp = min(smallest_timestamp, timestamp)
+            sub_graph = nx.subgraph(self.G, nodes)
+            for _, _, attrs in sub_graph.edges(data=True):
+                timestamp = attrs.get('Timestamp', None)
+                if timestamp is not None:
+                    largest_timestamp = max(largest_timestamp, timestamp)
+                    smallest_timestamp = min(smallest_timestamp, timestamp)
 
-        # Check if any timestamp was found
-        if largest_timestamp == float('-inf') or smallest_timestamp == float('inf'):
-            raise ValueError('Couldn\'t find timestamp')
-        else:
-            return largest_timestamp - smallest_timestamp
+            # Check if any timestamp was found
+            if largest_timestamp == float('-inf') or smallest_timestamp == float('inf'):
+                raise ValueError('Couldn\'t find timestamp')
+            else:
+                max_times[cid] = largest_timestamp - smallest_timestamp
+        return max_times
     
     def __remove_startpoint_from_p(self, G):
         for item in self.starting_points.values():
@@ -259,12 +263,19 @@ class OutbreakDetection:
         return len(detected_outbreak_dl) / all_cascade
     
     def __penalty_reduction_DT(self, T):
-        if T == float('inf'):
-            return 0
-        else:
-            normalized_times = 1 - T / self.t_max
-            return 1 / (1 + np.exp(-normalized_times))
-
+        # if T == float('inf'):
+        #     return 0
+        # else:
+        #     normalized_times = 1 - T / self.t_max
+        #     # return 1 / (1 + np.exp(-normalized_times))
+        #     return (1 - np.exp(-normalized_times))
+        sum_frac = 0
+        for cid, t in T.items():
+            if t == float('inf'):
+                continue
+            sum_frac += t / self.t_max[cid]
+        return sum_frac
+    
     def __detection_time(self, placement):
         """
         Return: 0 to 1
@@ -274,14 +285,15 @@ class OutbreakDetection:
         if not detected_info: 
             return 0
 
-        shortest_time = float('inf')
+        shortest_time = {key: float('inf') for key in self.weakly_component}
         # Get every starting point for each component
         for node in placement:
             if node not in detected_info:
                 continue
+            component_id = self.weakly_nodes[node]
             if node in self.detection_time_nodes:
                 node_time = self.detection_time_nodes[node]
-                shortest_time = node_time if shortest_time > node_time else shortest_time
+                shortest_time[component_id] = node_time if shortest_time[component_id] > node_time else shortest_time[component_id]
                 continue
             # Get the starting point of this component
             start_edge = self.starting_points[detected_info[node]]
@@ -297,14 +309,13 @@ class OutbreakDetection:
             else:
                 shorted_path = nx.shortest_path(self.G, start_edge['source'], node)
                 time = self.G[shorted_path[-2]][shorted_path[-1]]['Timestamp'] - start_edge['time']
-            # directly connected with the starting point
-            # if len(shorted_path) < 2:
-            #     shortest_time = 0
-            if time < shortest_time:
-                shortest_time = time
-            self.detection_time_nodes[node] = shortest_time
-        if(shortest_time) < 0:
+
+            shortest_time[component_id] = time if time < shortest_time[component_id] else shortest_time[component_id]
+            self.detection_time_nodes[node] = shortest_time[component_id]
+
+        if(shortest_time[component_id]) < 0:
             raise ValueError(f'{shortest_time} cannot be negative')
+        
         r = self.__penalty_reduction_DT(shortest_time)
 
         return r

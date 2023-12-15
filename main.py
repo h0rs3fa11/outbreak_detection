@@ -35,7 +35,9 @@ if args.graph == 'mt':
         result_file_name='mention_higgs_network.csv', 
         follower_file_name='higgs-social_network.edgelist', 
         timestamp_file_name='higgs-activity_time.txt',
-        activity='MT')
+        activity='MT', use_follower=True)
+    algo = OutbreakDetection(network, args.budget, args.objective_function, testing=args.test, use_follower=True)
+    
 else:
     network = Network(
         dataset_dir='dataset',
@@ -45,8 +47,7 @@ else:
         timestamp_file_name='higgs-activity_time.txt',
         activity='RT')
 
-# run algorithm
-algo = OutbreakDetection(network, args.budget, args.objective_function, testing=args.test)
+    algo = OutbreakDetection(network, args.budget, args.objective_function, testing=args.test)
 
 if args.command == 'algorithm':
     if args.algorithm == 'uc-greedy':
