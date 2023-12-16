@@ -8,7 +8,7 @@ Detecting outbreak and optimizing objective functions by using different Algorit
 
 ## Datasets
 
-Put [higgs dataset files](https://snap.stanford.edu/data/higgs-twitter.html) in `dataset/`
+Put [higgs dataset files](https://snap.stanford.edu/data/higgs-twitter.html) in `dataset/`(or unzip `dataset.zip`)
 
 ```
 higgs-mention_network.edgelist
@@ -42,6 +42,10 @@ options:
   -obj {DL,DT,PA}, --objective_function {DL,DT,PA}
                         objective functions
 ```
+
+## Visualization
+
+See `visualization.ipynb`
 
 ## References
 
