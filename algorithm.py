@@ -234,11 +234,6 @@ class OutbreakDetection:
                 if n not in self.weakly_nodes:
                     continue
                 cid = self.weakly_nodes.get(n)
-
-                if cid in detected_outbreak_dl:
-                    # detected outbreak / all outbreaks
-                    detected_info[n] = cid
-                    continue
                 
                 # For the cascade of this component
                 start = self.starting_points[cid]
@@ -286,10 +281,11 @@ class OutbreakDetection:
         detected_components, detected_info = self.__can_detect(placement)
         if not detected_info: 
             return 0
-
         shortest_time = {key: float('inf') for key in self.weakly_component}
         # Get every starting point for each component
         for node in placement:
+            if node == 316609:
+                pass
             if node not in detected_info:
                 continue
             component_id = self.weakly_nodes[node]
@@ -335,32 +331,58 @@ class OutbreakDetection:
         """
 
         cascades = {}
-        seeds = set()
+        seeds = []
 
-        for s in self.starting_points:
-            seeds.add(s['start'])
-            seeds.add(s['target'])
+        for s in self.starting_points.values():
+            seeds.append(s['source'])
+            seeds.append(s['target'])
 
-        for i in range(mc):
-        
-            # Simulate propagation process      
-            new_active, A = seeds[:], seeds[:]
-            while new_active:
+        # Simulate propagation process      
+        new_active, A = seeds[:], seeds[:]
+        while new_active:
+            # For each newly active node, find its neighbors that become activated
+            new_ones = []
+            for node in new_active:
+            # Determine neighbors that become infected
+                success = list(self.G.successors(node))
+                for child in success:
+                    cid = self.weakly_nodes[child]
 
-                # For each newly active node, find its neighbors that become activated
-                new_ones = []
-                for node in new_active:
-                    # Determine neighbors that become infected
-                    success = self.G.successors(node)
+                    if child == self.starting_points[cid]['source'] or child == self.starting_points[cid]['target']:
+                        continue
+                    # print(child)
+                    if child in cascades:
+                        continue
+                    child_from = []
+                    if nx.has_path(self.G, self.starting_points[cid]['source'], child) and nx.has_path(self.G, self.starting_points[cid]['target'], child):
+                        child_from.append(self.starting_points[cid]['source'])
+                        child_from.append(self.starting_points[cid]['target'])
+                    elif nx.has_path(self.G, self.starting_points[cid]['source'], child):
+                        child_from.append(self.starting_points[cid]['source'])
+                    elif nx.has_path(self.G, self.starting_points[cid]['target'], child):
+                        child_from.append(self.starting_points[cid]['target'])
+                    else:
+                        logging.error(f'{child} not connected to starting nodes, this should not happen')
+                        continue
+                    
+                    min_time = float('inf')
+                    for s in child_from:
+                        shortest_path = nx.dijkstra_path(self.G, s, child, 'Timestamp')
+                        if len(shortest_path) == 1:
+                            timestamp = self.G[s][shortest_path[0]]['Timestamp']
+                        else:
+                            timestamp = self.G[shortest_path[-2]][shortest_path[-1]]['Timestamp']
+                        min_time = min(min_time, timestamp)
 
-                    new_ones += success
+                    cascades[child] = min_time
 
-                new_active = list(set(new_ones) - set(A))
+                        
+                new_ones += success
+
+            new_active = list(set(new_ones) - set(A))
                 
-                # Add newly activated nodes to the set of activated nodes
-                A += new_active
-            
-        
+            # Add newly activated nodes to the set of activated nodes
+            A += new_active
 
         return cascades
     
